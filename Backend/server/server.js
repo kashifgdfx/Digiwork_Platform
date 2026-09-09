@@ -7,7 +7,7 @@ const app = express();
 const PORT = Number(process.env.PORT || 5000);
 
 const allowedOrigins = new Set([
-  process.env.CLIENT_URL || 'http://localhost:3000',
+  process.env.CLIENT_URL || 'https://digiwork-platform.vercel.app',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
 ]);
