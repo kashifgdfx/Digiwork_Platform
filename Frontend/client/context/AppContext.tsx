@@ -59,10 +59,12 @@ const STORAGE_KEYS = {
   ROLE: 'fiverr_clone_role',
 };
 
-function normalizeUser(user: Partial<User> & { id: string; name: string; email?: string }): User {
+function normalizeUser(user: Partial<User> & { id: string; name?: string; email?: string }): User {
+  const resolvedName = user.name || user.username || user.email?.split('@')[0] || 'Unknown user';
+
   return {
     id: user.id,
-    name: user.name,
+    name: resolvedName,
     username: user.username || user.email?.split('@')[0] || user.id,
     avatar: user.avatar || '',
     level: user.level || 'New Seller',
@@ -97,13 +99,23 @@ function normalizeConversation(conversation: Conversation, fallbackParticipant?:
     buyer?: Partial<User>;
     participantId?: string;
     participantName?: string;
+    buyerId?: string;
+    sellerId?: string;
   };
+
   const participant = payload.participant || payload.seller || payload.buyer || fallbackParticipant;
-  const participantId = participant?.id || payload.participantId || 'unknown-participant';
-  const participantName = participant?.name || payload.participantName || 'Unknown user';
+  const participantId = participant?.id || payload.participantId || payload.buyerId || payload.sellerId || 'unknown-participant';
+  const participantName =
+    participant?.name ||
+    participant?.username ||
+    participant?.email?.split('@')[0] ||
+    payload.participantName ||
+    'Unknown user';
 
   return {
     ...conversation,
+    buyerId: payload.buyerId,
+    sellerId: payload.sellerId,
     id: conversation.id || payload._id || `conversation-${Date.now()}`,
     participant: normalizeUser({
       ...participant,
@@ -587,10 +599,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMessagingError(null);
 
     try {
+      const activeConversation = conversations.find((conversation) => conversation.id === conversationId);
+      const receiverId =
+        activeConversation?.sellerId && activeConversation.sellerId !== currentUser.id
+          ? activeConversation.sellerId
+          : activeConversation?.buyerId && activeConversation.buyerId !== currentUser.id
+            ? activeConversation.buyerId
+            : activeConversation?.participant?.id || 'unknown-participant';
+
       const payload = {
         conversationId,
         senderId: currentUser.id,
-        receiverId: conversations.find((conversation) => conversation.id === conversationId)?.participant?.id,
+        receiverId,
         text: text.trim(),
       };
 
@@ -628,7 +648,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw error;
     }
 
-    const existing = conversations.find((c) => c.participant.id === seller.id || c.participant?.id === seller.id);
+    const existing = conversations.find((c) => {
+      const sameSeller = c.sellerId === seller.id || c.participant?.id === seller.id;
+      const sameBuyer = c.buyerId === currentUser.id;
+      return sameSeller && sameBuyer;
+    }) || conversations.find((c) => c.participant?.id === seller.id || c.sellerId === seller.id);
+
     if (existing) {
       const socket = socketService.getSocket();
       socket?.emit('join-conversation', { conversationId: existing.id });

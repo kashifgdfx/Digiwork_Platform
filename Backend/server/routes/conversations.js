@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const Conversation = require('../models/Conversation');
+const User = require('../models/User');
 const connectDB = require('../db');
 
 const requiredText = (value) => typeof value === 'string' && value.trim().length > 0;
@@ -13,7 +14,50 @@ router.get('/:userId', async (req, res) => {
     const conversations = await Conversation.find({
       $or: [{ buyerId: userId }, { sellerId: userId }],
     }).sort({ updatedAt: -1 }).lean();
-    return res.json({ success: true, count: conversations.length, conversations });
+
+    const enriched = await Promise.all(
+      conversations.map(async (conversation) => {
+        const otherUserId = conversation.buyerId === userId ? conversation.sellerId : conversation.buyerId;
+        const otherUser = otherUserId ? await User.findOne({ id: otherUserId }).lean() : null;
+
+        const participant = otherUser
+          ? {
+              id: otherUser.id,
+              name: otherUser.name || otherUser.username || otherUser.email || 'Unknown user',
+              username: otherUser.username || otherUser.email?.split('@')[0] || 'unknown-user',
+              email: otherUser.email || '',
+              avatar: otherUser.avatar || '',
+              level: otherUser.level || 'New Seller',
+              responseTime: otherUser.responseTime || '1 hour',
+              rating: otherUser.rating || 0,
+              reviewCount: otherUser.reviewCount || 0,
+              country: otherUser.country || '',
+            }
+          : {
+              id: otherUserId || 'unknown-participant',
+              name: 'Unknown user',
+              username: 'unknown-user',
+              email: '',
+              avatar: '',
+              level: 'New Seller',
+              responseTime: '1 hour',
+              rating: 0,
+              reviewCount: 0,
+              country: '',
+            };
+
+        return {
+          ...conversation,
+          participant,
+          participantId: participant.id,
+          participantName: participant.name,
+          buyerId: conversation.buyerId,
+          sellerId: conversation.sellerId,
+        };
+      })
+    );
+
+    return res.json({ success: true, count: enriched.length, conversations: enriched });
   } catch (error) {
     console.error('Get conversations error:', error);
     return res.status(500).json({ success: false, error: 'Unable to load conversations' });

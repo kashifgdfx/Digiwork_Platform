@@ -4,6 +4,7 @@ export interface User {
   id: string;
   name: string;
   username: string;
+  email?: string;
   avatar: string;
   level: SellerLevel;
   rating: number;
@@ -168,11 +169,13 @@ export interface Message {
 export interface Conversation {
   id: string;
   participant: User;
+  buyerId?: string;
+  sellerId?: string;
+  gigId?: string;
+  gigTitle?: string;
   lastMessage: string;
   lastMessageTimestamp: string;
   unreadCount: number;
-  gigId?: string;
-  gigTitle?: string;
 }
 
 export interface Category {
