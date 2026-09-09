@@ -8,6 +8,7 @@ const ConversationSchema = new mongoose.Schema({
   gigTitle: { type: String, required: true, trim: true, maxlength: 200 },
   lastMessage: { type: String, default: '', trim: true, maxlength: 5000 },
   lastMessageTimestamp: { type: Date, default: null },
+  unreadCount: { type: Number, default: 0, min: 0 },
   unreadCountBuyer: { type: Number, default: 0, min: 0 },
   unreadCountSeller: { type: Number, default: 0, min: 0 },
 }, { timestamps: true, versionKey: false });

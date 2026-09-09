@@ -14,6 +14,12 @@ interface GigCardProps {
 export const GigCard: React.FC<GigCardProps> = ({ gig }) => {
   const { toggleFavorite, isFavorite } = useApp();
   const favorited = isFavorite(gig.id);
+  const seller = gig?.seller || {
+    name: 'Unknown Seller',
+    avatar: '',
+    level: 'New Seller',
+  };
+  const fallbackImage = 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=900&auto=format&fit=crop&q=80';
 
   return (
     <div className="group bg-white rounded-xl border border-gray-200 overflow-hidden shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between">
@@ -22,7 +28,7 @@ export const GigCard: React.FC<GigCardProps> = ({ gig }) => {
         <div className="relative aspect-[16/10] overflow-hidden bg-gray-100">
           <Link href={`/gigs/${gig.id}`}>
             <img
-              src={gig.images[0]}
+              src={gig.images?.[0] || fallbackImage}
               alt={gig.title}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               loading="lazy"
@@ -60,16 +66,16 @@ export const GigCard: React.FC<GigCardProps> = ({ gig }) => {
           {/* Seller Meta */}
           <div className="flex items-center gap-2.5 mb-2.5">
             <img
-              src={gig.seller.avatar}
-              alt={gig.seller.name}
+              src={seller.avatar || fallbackImage}
+              alt={seller.name}
               className="w-7 h-7 rounded-full object-cover border border-gray-100"
             />
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-semibold text-gray-900 truncate">
-                {gig.seller.name}
+                {seller.name}
               </span>
               <span className="text-[11px] text-gray-500 truncate">
-                {gig.seller.level}
+                {seller.level}
               </span>
             </div>
           </div>

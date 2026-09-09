@@ -6,6 +6,11 @@ const MessageSchema = new mongoose.Schema({
   senderId: { type: String, required: true, trim: true },
   receiverId: { type: String, required: true, trim: true },
   text: { type: String, required: true, trim: true, minlength: 1, maxlength: 5000 },
+  attachments: { type: [String], default: [] },
+  sentAt: { type: Date, default: Date.now },
+  deliveredAt: { type: Date, default: null },
+  seenAt: { type: Date, default: null },
+  status: { type: String, enum: ['sent', 'delivered', 'seen'], default: 'sent' },
   isRead: { type: Boolean, default: false },
 }, { timestamps: { createdAt: true, updatedAt: false }, versionKey: false });
 

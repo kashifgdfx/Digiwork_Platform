@@ -14,6 +14,7 @@ import {
   mockGigs,
 } from '@/data/mockData';
 import { apiFetch } from '@/lib/api';
+import { socketService } from '@/lib/socket';
 
 interface AppContextType {
   currentUser: User | null;
@@ -126,6 +127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [messagingLoading, setMessagingLoading] = useState(false);
   const [messagingError, setMessagingError] = useState<string | null>(null);
+  const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
 
@@ -154,9 +156,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await apiFetch('/api/auth/logout', { method: 'POST' });
     } finally {
       setCurrentUser(null);
+      socketService.disconnect();
     }
   };
 
+  const upsertMessageIntoState = (conversationId: string, incoming: Message) => {
+    setMessages((prev) => {
+      const existing = prev[conversationId] || [];
+      const alreadyExists = existing.some((item) => item.id === incoming.id);
+      if (alreadyExists) return prev;
+      return {
+        ...prev,
+        [conversationId]: [...existing, incoming],
+      };
+    });
+
+    setConversations((prev) => prev.map((convo) =>
+      convo.id === conversationId
+        ? {
+            ...convo,
+            lastMessage: incoming.text,
+            lastMessageTimestamp: incoming.timestamp,
+            unreadCount: incoming.senderId === currentUser?.id ? convo.unreadCount : 0,
+          }
+        : convo
+    ));
+  };
 
   const loadConversations = async (userId: string) => {
     setMessagingLoading(true);
@@ -240,6 +265,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     refreshCurrentUser();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const socket = socketService.connect();
+    socket.emit('join-user');
+
+    const handleReceiveMessage = (payload: any) => {
+      const message: Message = {
+        id: payload.id || `msg-${Date.now()}`,
+        conversationId: payload.conversationId,
+        senderId: payload.senderId,
+        senderName: payload.senderName || 'User',
+        senderAvatar: payload.senderAvatar || '',
+        text: payload.text,
+        timestamp: new Date(payload.timestamp || payload.sentAt || Date.now()).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        isRead: payload.senderId === currentUser.id,
+      };
+
+      upsertMessageIntoState(payload.conversationId, message);
+
+      if (payload.senderId !== currentUser.id) {
+        setConversations((prev) => prev.map((conversation) =>
+          conversation.id === payload.conversationId
+            ? { ...conversation, lastMessage: payload.text, lastMessageTimestamp: message.timestamp, unreadCount: conversation.unreadCount + 1 }
+            : conversation
+        ));
+      }
+    };
+
+    const handleTypingStart = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
+      if (userId === currentUser.id) return;
+      setTypingUsers((prev) => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []).filter((id) => id !== userId), userId],
+      }));
+    };
+
+    const handleTypingStop = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
+      setTypingUsers((prev) => ({
+        ...prev,
+        [conversationId]: (prev[conversationId] || []).filter((id) => id !== userId),
+      }));
+    };
+
+    const handleSeen = ({ conversationId, senderId }: { conversationId: string; senderId: string }) => {
+      setMessages((prev) => ({
+        ...prev,
+        [conversationId]: (prev[conversationId] || []).map((item) =>
+          item.senderId === senderId ? { ...item, isRead: true } : item
+        ),
+      }));
+    };
+
+    socket.on('receive-message', handleReceiveMessage);
+    socket.on('typing:start', handleTypingStart);
+    socket.on('typing:stop', handleTypingStop);
+    socket.on('message:seen', handleSeen);
+
+    conversations.forEach((conversation) => {
+      socket.emit('join-conversation', { conversationId: conversation.id });
+    });
+
+    return () => {
+      socket.off('receive-message', handleReceiveMessage);
+      socket.off('typing:start', handleTypingStart);
+      socket.off('typing:stop', handleTypingStop);
+      socket.off('message:seen', handleSeen);
+    };
+  }, [currentUser, conversations]);
 
   // 1. Initial LocalStorage Read for instantaneous render
   useEffect(() => {
@@ -458,7 +556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sendMessage = async (conversationId: string, text: string) => {
     if (!currentUser || !text.trim()) return;
 
-    const newMsg: Message = {
+    const optimisticMessage: Message = {
       id: `msg-${Date.now()}`,
       conversationId,
       senderId: currentUser.id,
@@ -469,22 +567,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isRead: true,
     };
 
+    setMessages((prev) => ({
+      ...prev,
+      [conversationId]: [...(prev[conversationId] || []), optimisticMessage],
+    }));
+
+    setConversations((prev) => prev.map((conversation) =>
+      conversation.id === conversationId
+        ? {
+            ...conversation,
+            lastMessage: text.trim(),
+            lastMessageTimestamp: optimisticMessage.timestamp,
+            unreadCount: 0,
+          }
+        : conversation
+    ));
+
     setMessagingLoading(true);
     setMessagingError(null);
 
     try {
+      const payload = {
+        conversationId,
+        senderId: currentUser.id,
+        receiverId: conversations.find((conversation) => conversation.id === conversationId)?.participant?.id,
+        text: text.trim(),
+      };
+
       const response = await apiFetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMsg),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Unable to send message');
 
-      await Promise.all([
-        loadMessages(conversationId),
-        loadConversations(currentUser.id),
-      ]);
+      const socket = socketService.getSocket();
+      socket?.emit('send-message', {
+        conversationId,
+        receiverId: payload.receiverId,
+        text: text.trim(),
+        attachments: [],
+      });
+
+      await loadConversations(currentUser.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to send message';
       setMessagingError(message);
@@ -502,8 +628,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw error;
     }
 
-    const existing = conversations.find((c) => c.participant.id === seller.id);
+    const existing = conversations.find((c) => c.participant.id === seller.id || c.participant?.id === seller.id);
     if (existing) {
+      const socket = socketService.getSocket();
+      socket?.emit('join-conversation', { conversationId: existing.id });
       return existing.id;
     }
 
@@ -512,12 +640,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       const response = await apiFetch('/api/conversations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          participantId: seller.id,
-          sellerId: seller.id,
           buyerId: currentUser.id,
+          sellerId: seller.id,
           gigId: gig?.id,
           gigTitle: gig?.title,
         }),
@@ -537,6 +664,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         conversation,
         ...prev.filter((item) => item.id !== conversation.id),
       ]);
+
+      const socket = socketService.getSocket();
+      socket?.emit('join-conversation', { conversationId });
       return conversation.id;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to start conversation';

@@ -2,8 +2,11 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const http = require('http');
+const { registerSocketServer } = require('./socket');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = Number(process.env.PORT || 5000);
 
 const allowedOrigins = new Set([
@@ -44,4 +47,13 @@ app.use((error, _req, res, _next) => {
   res.status(error.status || 500).json({ success: false, error: error.message || 'Internal Server Error' });
 });
 
-app.listen(PORT, () => console.log(`API server listening on http://localhost:${PORT}`));
+registerSocketServer(server, {
+  allowedOrigins: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    process.env.CLIENT_URL || 'https://digiwork-platform.vercel.app',
+    'https://digiwork-platform.vercel.app',
+  ],
+});
+
+server.listen(PORT, () => console.log(`API server listening on http://localhost:${PORT}`));

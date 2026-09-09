@@ -1,14 +1,17 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const connectDB = require('../db');
+const { registerSocketServer } = require('../socket');
 
 connectDB().catch((err) => {
   console.error('MongoDB Error:', err);
 });
 
 const app = express();
+const server = http.createServer(app);
 
 const allowedOrigins = new Set([
   process.env.CLIENT_URL || 'https://digiwork-platform.vercel.app',
@@ -63,4 +66,14 @@ app.use((req, res) => {
   });
 });
 
+registerSocketServer(server, {
+  allowedOrigins: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    process.env.CLIENT_URL || 'https://digiwork-platform.vercel.app',
+    'https://digiwork-platform.vercel.app',
+  ],
+});
+
 module.exports = app;
+module.exports.server = server;
