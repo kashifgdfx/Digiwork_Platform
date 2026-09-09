@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "build": "node --check server.js",
     "migrate:gigs": "node scripts/migrateGigsToSellerId.js"
   },
   "dependencies": {

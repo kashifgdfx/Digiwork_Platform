@@ -34,6 +34,15 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
+app.get('/', (_req, res) =>
+  res.json({
+    success: true,
+    service: 'fiverr-clone-api',
+    health: '/health',
+    api: '/api',
+  })
+);
+
 app.get('/health', (_req, res) =>
   res.json({ success: true, service: 'fiverr-clone-api' })
 );
@@ -46,5 +55,12 @@ app.use('/api/orders', require('../routes/orderRoutes'));
 app.use('/api/conversations', require('../routes/conversations'));
 app.use('/api/messages', require('../routes/messages'));
 app.use('/api/seed', require('../routes/seedRoutes'));
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route not found: ${req.originalUrl}`,
+  });
+});
 
 module.exports = app;

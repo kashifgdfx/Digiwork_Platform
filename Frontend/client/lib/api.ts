@@ -1,4 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.VERCEL_ENV === 'production'
+    ? 'https://digiwork-platform-cizx.vercel.app'
+    : 'http://localhost:5000');
 
 export function apiUrl(path: string): string {
   return `${API_URL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
