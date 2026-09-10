@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { User } from "@/types";
+import { ProfileSkeleton } from '@/components/skeletons/ProfileSkeleton';
 
 interface PageProps {
   params: Promise<{ username: string }>;
@@ -39,12 +40,7 @@ export default function PublicProfilePage({ params }: PageProps) {
       .finally(() => setLoading(false));
   }, [username]);
 
-  if (loading)
-    return (
-      <main className="mx-auto max-w-6xl px-4 py-20">
-        <div className="h-64 animate-pulse rounded-2xl bg-gray-100" />
-      </main>
-    );
+  if (loading) return <ProfileSkeleton />;
   if (error || !user)
     return (
       <main className="mx-auto max-w-2xl px-4 py-24 text-center">

@@ -5,11 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { GigCard } from '@/components/GigCard';
 import { FilterSidebar } from '@/components/FilterSidebar';
+import { SearchResultsSkeleton } from '@/components/skeletons/SearchResultsSkeleton';
 import { ArrowUpDown, Heart, Search, SlidersHorizontal, X } from 'lucide-react';
 
 function GigsContent() {
   const searchParams = useSearchParams();
-  const { gigs, favorites } = useApp();
+  const { gigs, favorites, gigsLoading } = useApp();
 
   const urlCategory = searchParams.get('category') || '';
   const urlSearch = searchParams.get('search') || '';
@@ -289,7 +290,7 @@ function GigsContent() {
 
 export default function GigsPage() {
   return (
-    <Suspense fallback={<div className="max-w-7xl mx-auto px-4 py-16 text-center text-gray-400">Loading gigs catalog...</div>}>
+    <Suspense fallback={<SearchResultsSkeleton />}>
       <GigsContent />
     </Suspense>
   );

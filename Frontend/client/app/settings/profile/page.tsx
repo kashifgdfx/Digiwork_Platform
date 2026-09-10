@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { apiFetch } from '@/lib/api';
 import { Education, Experience, Certification, PortfolioItem } from '@/types';
+import { ProfileSkeleton } from '@/components/skeletons/ProfileSkeleton';
 
 const tabs = ['Personal Information', 'Professional Information', 'Skills', 'Languages', 'Education', 'Certifications', 'Experience', 'Portfolio', 'Social Links'] as const;
 type Tab = typeof tabs[number];
@@ -27,7 +28,7 @@ export default function ProfileSettingsPage() {
   const [fields, setFields] = useState<FieldMap>({});
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  if (!currentUser) return <div className="mx-auto max-w-4xl px-4 py-20 text-center text-gray-500">Loading profile...</div>;
+  if (!currentUser) return <ProfileSkeleton />;
 
   const setField = (key: string, value: string) => setFields((previous) => ({ ...previous, [key]: value }));
   const resetForm = () => { setFields({}); setEditingId(null); };

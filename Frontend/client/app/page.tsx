@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { mockCategories } from '@/data/mockData';
 import { GigCard } from '@/components/GigCard';
+import { GigCardSkeleton } from '@/components/skeletons/GigCardSkeleton';
 import {
   ArrowRight,
   Award,
@@ -21,7 +22,7 @@ import {
 
 export default function HomePage() {
   const router = useRouter();
-  const { gigs, searchQuery, setSearchQuery } = useApp();
+  const { gigs, searchQuery, setSearchQuery, gigsLoading } = useApp();
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('All');
 
   const popularTags = ['Next.js', 'Logo Design', 'WordPress', 'AI Services', 'Video Editing', 'SEO'];
@@ -194,11 +195,19 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredGigs.map((gig) => (
-              <GigCard key={gig.id} gig={gig} />
-            ))}
-          </div>
+          {gigsLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <GigCardSkeleton key={index} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {filteredGigs.map((gig) => (
+                <GigCard key={gig.id} gig={gig} />
+              ))}
+            </div>
+          )}
 
           <div className="mt-12 text-center">
             <Link

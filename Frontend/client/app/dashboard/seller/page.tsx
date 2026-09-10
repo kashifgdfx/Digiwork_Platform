@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { CreateGigModal } from '@/components/CreateGigModal';
 import { OrderStatusBadge } from '@/components/OrderStatusBadge';
+import { SellerDashboardSkeleton } from '@/components/skeletons/SellerDashboardSkeleton';
 import { apiFetch } from '@/lib/api';
 import {
   CheckCircle2,
@@ -175,13 +176,7 @@ export default function SellerDashboardPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-gray-500 font-medium">
-        Loading freelancer hub...
-      </div>
-    );
-  }
+  if (loading) return <SellerDashboardSkeleton />;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">

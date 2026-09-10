@@ -7,6 +7,9 @@ const connectDB = require("../db");
 const secret = () =>
   process.env.JWT_SECRET || "tumhara_super_secret_key_yahan_hoga";
 
+const isProduction = () =>
+  process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+
 const publicUser = (user) => ({
   id: user.id,
   name: user.name,
@@ -122,13 +125,15 @@ router.post("/login", async (req, res) => {
       name: user.name,
     };
     const token = jwt.sign(userData, secret(), { expiresIn: "7d" });
-    res.cookie("token", token, {
+    const cookieOptions = {
       httpOnly: true,
-  secure: true,
-  sameSite: 'none',
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-  path: '/',
-    });
+      secure: isProduction(),
+      sameSite: isProduction() ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    };
+
+    res.cookie("token", token, cookieOptions);
     res.json({
       success: true,
       message: "Login successful",
@@ -156,10 +161,10 @@ router.get("/me", async (req, res) => {
 
 router.post("/logout", (req, res) => {
   res.clearCookie("token", {
-   httpOnly: true,
-  secure: true,
-  sameSite: 'none',
-  path: '/',
+    httpOnly: true,
+    secure: isProduction(),
+    sameSite: isProduction() ? "none" : "lax",
+    path: "/",
   });
   return res.json({ success: true });
 });

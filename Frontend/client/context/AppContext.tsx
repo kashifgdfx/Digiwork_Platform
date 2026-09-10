@@ -20,6 +20,15 @@ interface AppContextType {
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
   isAuthLoading: boolean;
+  profileLoading: boolean;
+  gigsLoading: boolean;
+  gigLoading: boolean;
+  messagesLoading: boolean;
+  conversationsLoading: boolean;
+  ordersLoading: boolean;
+  reviewsLoading: boolean;
+  dashboardLoading: boolean;
+  favoritesLoading: boolean;
   refreshCurrentUser: () => Promise<User | null>;
   updateCurrentUser: (user: User) => void;
   loadMessages: (conversationId: string) => Promise<void>;
@@ -131,6 +140,15 @@ function normalizeConversation(conversation: Conversation, fallbackParticipant?:
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [gigsLoading, setGigsLoading] = useState(false);
+  const [gigLoading, setGigLoading] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
   const [currentRole, setCurrentRole] = useState<UserRole>('buyer');
   const [gigs, setGigs] = useState<Gig[]>(mockGigs);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -144,6 +162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
 
   const refreshCurrentUser = async (): Promise<User | null> => {
+    setProfileLoading(true);
     try {
       const response = await apiFetch('/api/auth/me');
       if (!response.ok) {
@@ -159,6 +178,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser(null);
       return null;
     } finally {
+      setProfileLoading(false);
       setIsAuthLoading(false);
     }
   };
@@ -196,6 +216,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const loadConversations = async (userId: string) => {
+    setConversationsLoading(true);
     setMessagingLoading(true);
     setMessagingError(null);
 
@@ -211,11 +232,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setMessagingError(message);
       throw err;
     } finally {
+      setConversationsLoading(false);
       setMessagingLoading(false);
     }
   };
 
   const loadMessages = async (conversationId: string) => {
+    setMessagesLoading(true);
     setMessagingLoading(true);
     setMessagingError(null);
 
@@ -233,6 +256,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setMessagingError(message);
       throw err;
     } finally {
+      setMessagesLoading(false);
       setMessagingLoading(false);
     }
   };
@@ -372,6 +396,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // 2. Fetch live data from MongoDB backend API
   useEffect(() => {
     async function syncWithMongoDB() {
+      setGigsLoading(true);
+      setOrdersLoading(true);
+
       try {
         const [gigsRes, ordersRes] = await Promise.all([
           apiFetch('/api/gigs'),
@@ -394,6 +421,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       } catch (err) {
         console.warn('MongoDB API sync notice (running with cached dataset):', err);
+      } finally {
+        setGigsLoading(false);
+        setOrdersLoading(false);
       }
     }
 
@@ -417,9 +447,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleFavorite = (gigId: string) => {
+    setFavoritesLoading(true);
     setFavorites((prev) =>
       prev.includes(gigId) ? prev.filter((id) => id !== gigId) : [...prev, gigId]
     );
+    setTimeout(() => setFavoritesLoading(false), 150);
   };
 
   const isFavorite = (gigId: string) => favorites.includes(gigId);
@@ -705,13 +737,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-
-         sendMessage,
+        sendMessage,
         loadMessages,
         loadConversations,
         currentUser,
         setCurrentUser,
         isAuthLoading,
+        profileLoading,
+        gigsLoading,
+        gigLoading,
+        messagesLoading,
+        conversationsLoading,
+        ordersLoading,
+        reviewsLoading,
+        dashboardLoading,
+        favoritesLoading,
         refreshCurrentUser,
         updateCurrentUser,
         updateProfile,
@@ -735,7 +775,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         messages,
         messagingLoading,
         messagingError,
-      
         startConversationWithSeller,
         searchQuery,
         setSearchQuery,

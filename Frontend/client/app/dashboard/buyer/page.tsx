@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { OrderStatusBadge } from '@/components/OrderStatusBadge';
+import { BuyerDashboardSkeleton } from '@/components/skeletons/BuyerDashboardSkeleton';
 import { apiFetch } from '@/lib/api';
 import {
   Calendar,
@@ -113,13 +114,7 @@ export default function BuyerDashboardPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-gray-500 font-medium">
-        Loading client workspace...
-      </div>
-    );
-  }
+  if (loading) return <BuyerDashboardSkeleton />;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
