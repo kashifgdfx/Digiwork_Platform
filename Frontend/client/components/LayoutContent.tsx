@@ -35,7 +35,9 @@ export default function LayoutContent({
 
   const hideLayout =
     pathname === "/login" ||
-    pathname === "/signup";
+    pathname === "/signup" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password";
 
   return (
     <>

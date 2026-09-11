@@ -158,6 +158,31 @@ export interface Review {
   updatedAt: string;
 }
 
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface PasswordStrengthResult {
+  score: number;
+  label: 'Weak' | 'Medium' | 'Strong' | 'Very Strong';
+  color: string;
+  width: number;
+  valid: boolean;
+  checks: {
+    minLength: boolean;
+    uppercase: boolean;
+    lowercase: boolean;
+    number: boolean;
+    special: boolean;
+  };
+}
+
 export interface ReviewPayload { orderId: string; rating: number; comment: string; }
 export interface ReviewStats { rating: number; reviewCount: number; }
 export interface SellerRatingStats { averageRating: number; totalReviews: number; breakdown: Array<{ star: number; count: number }>; }
