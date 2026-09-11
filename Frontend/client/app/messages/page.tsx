@@ -30,6 +30,7 @@ function MessagesContent() {
     currentUser,
     loadMessages,
     loadConversations,
+    markConversationAsRead,
     messagingLoading,
     messagingError,
     conversationsLoading,
@@ -44,7 +45,7 @@ function MessagesContent() {
   const [showAttachmentNotice, setShowAttachmentNotice] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const urlConversationExists = Boolean(
     urlConvId && conversations.some((conversation) => conversation.id === urlConvId)
   );
@@ -60,14 +61,17 @@ function MessagesContent() {
     loadConversations(currentUser.id).catch(() => undefined);
   }, [currentUser]);
 
-  // Scroll to bottom when messages change
+  // Scroll only the chat container to bottom (Fixes page jumping issue)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeConvId, messages]);
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [selectedConvId, activeMessages.length]);
 
   useEffect(() => {
     if (!selectedConvId) return;
     loadMessages(selectedConvId).catch(() => undefined);
+    markConversationAsRead(selectedConvId);
   }, [selectedConvId]);
 
   // Filter conversations
@@ -114,13 +118,14 @@ function MessagesContent() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-[calc(100vh-6rem)] min-h-[650px] flex flex-col font-sans">
-      <div className="bg-white border border-slate-200/80 rounded-3xl shadow-xl shadow-slate-100 flex-1 flex overflow-hidden backdrop-blur-xl">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 h-[calc(100vh-6rem)] min-h-[600px] flex flex-col font-sans">
+      <div className="bg-white border border-slate-200/85 rounded-3xl shadow-xl shadow-slate-100 flex-1 flex overflow-hidden backdrop-blur-xl">
 
         {/* Left Column: Conversations Sidebar */}
         <div
-          className={`w-full md:w-80 lg:w-96 border-r border-slate-100 flex flex-col bg-slate-50/60 ${isChatView ? 'hidden md:flex' : 'flex'
-            }`}
+          className={`w-full md:w-80 lg:w-96 border-r border-slate-100 flex flex-col bg-slate-50/60 ${
+            isChatView ? 'hidden md:flex' : 'flex'
+          }`}
         >
           {/* Inbox Header */}
           <div className="p-5 border-b border-slate-100 bg-white/80 backdrop-blur-md">
@@ -135,7 +140,7 @@ function MessagesContent() {
                 </div>
               </div>
               <span className="inline-flex items-center justify-center w-16 h-6 text-[11px] font-bold bg-[#1dbf73] text-white rounded-full">
-           {conversations.length} Active
+                {conversations.length} Active
               </span>
             </div>
 
@@ -152,7 +157,7 @@ function MessagesContent() {
             </div>
           </div>
 
-          {/* Conversations Threads (Scrollbar hidden via Tailwind classes) */}
+          {/* Conversations Threads */}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100/65 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {messagingError && (
               <div className="p-4 text-center text-xs text-rose-500 bg-rose-50/50 border-b border-rose-100">
@@ -169,10 +174,11 @@ function MessagesContent() {
                     setActiveConvId(conv.id);
                     setMobileView('chat');
                   }}
-                  className={`w-full text-left p-4 flex items-start gap-3.5 transition-all relative ${isSelected
-                    ? 'bg-emerald-50/60 shadow-inner'
-                    : 'hover:bg-slate-100/50'
-                    }`}
+                  className={`w-full text-left p-4 flex items-start gap-3.5 transition-all relative ${
+                    isSelected
+                      ? 'bg-emerald-50/60 shadow-inner'
+                      : 'hover:bg-slate-100/50'
+                  }`}
                 >
                   {isSelected && (
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#1dbf73] rounded-r-full" />
@@ -233,8 +239,9 @@ function MessagesContent() {
 
         {/* Right Column: Chat Window */}
         <div
-          className={`flex-1 flex flex-col bg-white ${isChatView ? 'flex' : 'hidden md:flex'
-            }`}
+          className={`flex-1 flex flex-col bg-white ${
+            isChatView ? 'flex' : 'hidden md:flex'
+          }`}
         >
           {activeConv ? (
             <>
@@ -282,7 +289,6 @@ function MessagesContent() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {/* Linked Gig Pill */}
                   {activeConv.gigId && (
                     <Link
                       href={`/gigs/${activeConv.gigId}`}
@@ -295,9 +301,11 @@ function MessagesContent() {
                 </div>
               </div>
 
-              {/* Message Stream (Scrollbar hidden via Tailwind classes) */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {/* Security reminder pill */}
+              {/* Message Stream with ref attached */}
+              <div 
+                ref={chatContainerRef}
+                className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              >
                 <div className="flex justify-center my-2">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-50/80 border border-amber-200/60 text-amber-800 text-[11px] font-semibold rounded-full shadow-2xs backdrop-blur-xs">
                     <ShieldCheck size={13} className="text-amber-600" />
@@ -313,22 +321,30 @@ function MessagesContent() {
                       className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group`}
                     >
                       <div
-                        className={`max-w-md sm:max-w-lg px-4.5 py-3 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-xs transition-all ${isMe
-                          ? 'bg-[#1dbf73] text-white rounded-br-xs shadow-emerald-500/10'
-                          : 'bg-white border border-slate-200/80 text-slate-800 rounded-bl-xs'
-                          }`}
+                        className={`max-w-md sm:max-w-lg px-4.5 py-3 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-xs transition-all ${
+                          isMe
+                            ? 'bg-[#1dbf73] text-white rounded-br-xs shadow-emerald-500/10'
+                            : 'bg-white border border-slate-200/80 text-slate-800 rounded-bl-xs'
+                        }`}
                       >
                         {msg.text}
                       </div>
 
                       <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-slate-400 px-1 font-medium">
                         <span>{msg.timestamp}</span>
-                        {isMe && <CheckCheck size={13} className="text-[#1dbf73]" />}
+                        {isMe && (
+                          <>
+                            {msg.status === 'seen' ? (
+                              <CheckCheck size={13} className="text-[#1dbf73]" />
+                            ) : (
+                              <CheckCheck size={13} className="text-slate-400" />
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   );
                 })}
-                <div ref={messagesEndRef} />
               </div>
 
               {/* Attachment Toast */}
@@ -339,7 +355,7 @@ function MessagesContent() {
                 </div>
               )}
 
-              {/* Quick Canned Replies (Scrollbar hidden) */}
+              {/* Quick Canned Replies */}
               <div className="px-6 py-2.5 bg-white border-t border-slate-100 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">Suggestions:</span>
                 {[
@@ -390,7 +406,6 @@ function MessagesContent() {
               </div>
             </>
           ) : (
-            /* Empty State */
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 bg-slate-50/20">
               <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center text-[#1dbf73] mb-4 shadow-sm border border-emerald-100/50">
                 <MessageSquare size={36} />

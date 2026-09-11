@@ -29,6 +29,7 @@ export const Navbar: React.FC = () => {
     favorites,
     searchQuery,
     setSearchQuery,
+    unreadMessagesCount,
   } = useApp();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -38,8 +39,8 @@ export const Navbar: React.FC = () => {
 
   const isLoggedIn = !!currentUser;
 
-  // Calculate unread count
-  const unreadMessages = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
+  const unreadMessages = unreadMessagesCount || conversations.reduce((acc, c) => acc + c.unreadCount, 0);
+  const displayUnreadCount = unreadMessages > 99 ? '99+' : unreadMessages;
   const activeOrdersCount = orders.filter((o) => o.status === 'in_progress').length;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -115,8 +116,8 @@ export const Navbar: React.FC = () => {
                 >
                   <MessageSquare size={20} />
                   {unreadMessages > 0 && (
-                    <span className="absolute top-1 right-1 w-4 h-4 bg-[#1dbf73] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                      {unreadMessages}
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#1dbf73] text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none shadow-sm">
+                      {displayUnreadCount}
                     </span>
                   )}
                 </Link>

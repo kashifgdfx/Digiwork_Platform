@@ -4,7 +4,7 @@ import React, { use, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
-import { mockReviews } from '@/data/mockData';
+import { ReviewList } from '@/components/ReviewList';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { StarRating } from '@/components/StarRating';
 import { GigCard } from '@/components/GigCard';
@@ -67,21 +67,7 @@ export default function GigDetailPage({ params }: PageProps) {
   const favorited = isFavorite(gig.id);
   const isOwnGig = currentUser?.id === gig.seller.id;
   const selectedPackage = gig.packages[activeTier];
-
-  // Reviews for this gig (fallback to default review if none specific)
-  const gigReviews = mockReviews.filter((r) => r.gigId === gig.id);
-  const displayReviews = gigReviews.length > 0 ? gigReviews : [
-    {
-      id: 'rev-default',
-      gigId: gig.id,
-      reviewerName: 'Marcus Sterling',
-      reviewerAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-      reviewerCountry: 'United States',
-      rating: 5,
-      comment: 'Top-tier professionalism and lightning-fast communication. The deliverables exceeded our company expectations!',
-      createdAt: '4 days ago',
-    },
-  ];
+  const displayReviews: Array<{ id: string; reviewerName: string; reviewerAvatar: string; reviewerCountry: string; rating: number; comment: string; createdAt: string }> = [];
 
   // Related gigs
   const relatedGigs = gigs
@@ -370,7 +356,7 @@ export default function GigDetailPage({ params }: PageProps) {
           )}
 
           {/* Verified Customer Reviews */}
-          <div className="pt-6 border-t border-gray-100">
+          <div className="hidden" aria-hidden="true">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Reviews & Ratings</h2>
@@ -446,6 +432,7 @@ export default function GigDetailPage({ params }: PageProps) {
               ))}
             </div>
           </div>
+          <ReviewList gigId={gig.id} rating={gig.rating} reviewCount={gig.reviewCount} />
         </div>
 
         {/* Right Column (4-5 cols): Sticky 3-Tier Pricing Selector */}

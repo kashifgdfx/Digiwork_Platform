@@ -40,9 +40,9 @@ export const Footer: React.FC = () => {
             <ul className="space-y-2.5">
               <li><span className="hover:underline cursor-pointer">Help & Support</span></li>
               <li><span className="hover:underline cursor-pointer">Trust & Safety</span></li>
-              <li><span className="hover:underline cursor-pointer">Selling on Fiverr</span></li>
-              <li><span className="hover:underline cursor-pointer">Buying on Fiverr</span></li>
-              <li><span className="hover:underline cursor-pointer">Fiverr Guides</span></li>
+              <li><span className="hover:underline cursor-pointer">Selling on Digiwork</span></li>
+              <li><span className="hover:underline cursor-pointer">Buying on Digiwork</span></li>
+              <li><span className="hover:underline cursor-pointer">Digiwork Guides</span></li>
               <li><span className="hover:underline cursor-pointer">Learn Online Courses</span></li>
             </ul>
           </div>
@@ -64,7 +64,7 @@ export const Footer: React.FC = () => {
           <div>
             <h4 className="font-bold text-gray-900 mb-4">Business Solutions</h4>
             <ul className="space-y-2.5">
-              <li><span className="hover:underline cursor-pointer">Fiverr Pro</span></li>
+              <li><span className="hover:underline cursor-pointer">Digiwork Pro</span></li>
               <li><span className="hover:underline cursor-pointer">Project Management</span></li>
               <li><span className="hover:underline cursor-pointer">ClearVoice Content</span></li>
               <li><span className="hover:underline cursor-pointer">Working Not Working</span></li>
@@ -77,9 +77,9 @@ export const Footer: React.FC = () => {
         <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-500">
           <div className="flex items-center gap-3">
             <span className="text-xl font-black tracking-tight text-gray-900">
-              fiverr<span className="text-[#1dbf73]">.</span>
+              Digiwork<span className="text-[#1dbf73]">.</span>
             </span>
-            <span>© 2026 Fiverr International Ltd. Production Clone.</span>
+            <span>© 2026 Digiwork International Ltd. Production Clone.</span>
           </div>
 
           <div className="flex items-center gap-6">

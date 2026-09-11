@@ -2,6 +2,7 @@ const router = require('express').Router();
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const Review = require('../models/Review');
 const connectDB = require('../db');
 
 const secret = () => process.env.JWT_SECRET || 'tumhara_super_secret_key_yahan_hoga';
@@ -91,6 +92,11 @@ router.get('/:username', async (req, res) => {
     await connectDB();
     const user = await User.findOne({ username: clean(req.params.username, 80) }).select('-password -__v').lean();
     if (!user) return res.status(404).json({ success: false, error: 'Profile not found' });
+    const reviews = await Review.find({ sellerId: user.id }).select('rating').lean();
+    const averageRating = reviews.length ? Math.round((reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length) * 10) / 10 : 0;
+    user.rating = averageRating;
+    user.reviewCount = reviews.length;
+    user.sellerMetrics = { ...(user.sellerMetrics || {}), averageRating, totalReviews: reviews.length };
     user.profileCompletion = { percentage: calculateCompletion(user) };
     return res.json({ success: true, user });
   } catch (error) {

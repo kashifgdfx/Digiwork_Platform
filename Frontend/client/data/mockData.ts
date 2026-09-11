@@ -1,4 +1,6 @@
-import { Category, Conversation, Gig, Message, Order, Review, User } from '@/types';
+import { Category, Conversation, Gig, Message, Order, User } from '@/types';
+
+type LegacyMockReview = { id: string; gigId: string; reviewerName: string; reviewerAvatar: string; reviewerCountry: string; rating: number; comment: string; createdAt: string };
 
 export const mockCategories: Category[] = [
   {
@@ -1070,7 +1072,7 @@ export const mockGigs: Gig[] = [
   },
 ];
 
-export const mockReviews: Review[] = [
+export const mockReviews: LegacyMockReview[] = [
   {
     id: 'rev-1',
     gigId: 'gig-1',
@@ -1202,4 +1204,3 @@ export const mockReviews: Review[] = [
     createdAt: '3 days ago',
   },
 ];
-

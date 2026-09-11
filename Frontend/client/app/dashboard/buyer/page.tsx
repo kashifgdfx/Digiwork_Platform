@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { OrderStatusBadge } from '@/components/OrderStatusBadge';
 import { BuyerDashboardSkeleton } from '@/components/skeletons/BuyerDashboardSkeleton';
 import { apiFetch } from '@/lib/api';
+import { ReviewModal } from '@/components/ReviewModal';
 import {
   Calendar,
   CheckCircle2,
@@ -52,6 +53,8 @@ export default function BuyerDashboardPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [justCompletedId, setJustCompletedId] = useState<string | null>(null);
+  const [reviewedOrderIds, setReviewedOrderIds] = useState<Set<string>>(new Set());
+  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
 
   // Fetch orders and user profile from real backend API on mount
   useEffect(() => {
@@ -62,6 +65,13 @@ export default function BuyerDashboardPage() {
         if (data.success) {
           setOrders(data.orders);
           setUser(data.user); // <--- Backend se mila user data set kiya
+          const completed = data.orders.filter((order: Order) => order.status === 'completed');
+          const results = await Promise.all(completed.map(async (order: Order) => {
+            const reviewsResponse = await apiFetch(`/api/reviews/gig/${order.gigId}`);
+            const reviewsData = await reviewsResponse.json();
+            return (reviewsData.reviews || []).some((review: { orderId: string }) => review.orderId === order.id) ? order.id : null;
+          }));
+          setReviewedOrderIds(new Set(results.filter((id): id is string => Boolean(id))));
         }
       } catch (error) {
         console.error('Error fetching buyer orders:', error);
@@ -112,6 +122,13 @@ export default function BuyerDashboardPage() {
     } catch (error) {
       console.error('Error completing order:', error);
     }
+  };
+
+  const submitReview = async (payload: { orderId: string; rating: number; comment: string }) => {
+    const response = await apiFetch('/api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Unable to submit review');
+    setReviewedOrderIds((previous) => new Set(previous).add(payload.orderId));
   };
 
   if (loading) return <BuyerDashboardSkeleton />;
@@ -360,6 +377,11 @@ export default function BuyerDashboardPage() {
                       Mark as Received
                     </button>
                   )}
+                  {order.status === 'completed' && (reviewedOrderIds.has(order.id) ? (
+                    <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">Review Submitted</span>
+                  ) : (
+                    <button onClick={() => setReviewOrderId(order.id)} className="rounded-xl bg-[#1dbf73] px-4 py-2 text-xs font-bold text-white hover:bg-[#19a463]">Leave Review</button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -382,6 +404,7 @@ export default function BuyerDashboardPage() {
           </Link>
         </div>
       )}
+      {reviewOrderId && <ReviewModal orderId={reviewOrderId} onClose={() => setReviewOrderId(null)} onSubmit={submitReview} />}
     </div>
   );
 }

@@ -146,14 +146,21 @@ export interface Order {
 
 export interface Review {
   id: string;
+  orderId: string;
   gigId: string;
-  reviewerName: string;
-  reviewerAvatar: string;
-  reviewerCountry: string;
+  sellerId: string;
+  buyerId: string;
+  buyerName: string;
+  buyerAvatar: string;
   rating: number;
   comment: string;
   createdAt: string;
+  updatedAt: string;
 }
+
+export interface ReviewPayload { orderId: string; rating: number; comment: string; }
+export interface ReviewStats { rating: number; reviewCount: number; }
+export interface SellerRatingStats { averageRating: number; totalReviews: number; breakdown: Array<{ star: number; count: number }>; }
 
 export interface Message {
   id: string;
@@ -164,6 +171,9 @@ export interface Message {
   text: string;
   timestamp: string;
   isRead: boolean;
+  deliveredAt?: string | null;
+  seenAt?: string | null;
+  status?: 'sent' | 'delivered' | 'seen';
 }
 
 export interface Conversation {
@@ -176,6 +186,18 @@ export interface Conversation {
   lastMessage: string;
   lastMessageTimestamp: string;
   unreadCount: number;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: 'message';
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  text: string;
+  timestamp: string;
+  isRead: boolean;
 }
 
 export interface Category {

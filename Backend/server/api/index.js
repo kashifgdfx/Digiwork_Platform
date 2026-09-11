@@ -55,6 +55,7 @@ app.use('/api/profile', require('../routes/profileRoutes'));
 app.use('/api/dashboard', require('../routes/dashboardRoutes'));
 app.use('/api/gigs', require('../routes/gigRoutes'));
 app.use('/api/orders', require('../routes/orderRoutes'));
+app.use('/api/reviews', require('../routes/reviewRoutes'));
 app.use('/api/conversations', require('../routes/conversations'));
 app.use('/api/messages', require('../routes/messages'));
 app.use('/api/seed', require('../routes/seedRoutes'));

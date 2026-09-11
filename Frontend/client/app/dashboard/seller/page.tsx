@@ -6,6 +6,9 @@ import { CreateGigModal } from '@/components/CreateGigModal';
 import { OrderStatusBadge } from '@/components/OrderStatusBadge';
 import { SellerDashboardSkeleton } from '@/components/skeletons/SellerDashboardSkeleton';
 import { apiFetch } from '@/lib/api';
+import { SellerRatingStats } from '@/types';
+import { AnalyticsSkeleton } from '@/components/skeletons/AnalyticsSkeleton';
+import { socketService } from '@/lib/socket';
 import {
   CheckCircle2,
   Clock,
@@ -63,6 +66,7 @@ export default function SellerDashboardPage() {
 
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [reviewStats, setReviewStats] = useState<SellerRatingStats | null>(null);
 
   // Fetch seller dashboard data and profile from backend API on mount
   useEffect(() => {
@@ -74,6 +78,7 @@ export default function SellerDashboardPage() {
           setUser(data.user || null);
           setGigs(data.gigs || []);
           setOrders(data.orders || []);
+          setReviewStats(data.reviewStats || null);
         }
       } catch (error) {
         console.error('Error fetching seller dashboard data:', error);
@@ -83,6 +88,19 @@ export default function SellerDashboardPage() {
     }
 
     fetchSellerData();
+  }, []);
+
+  useEffect(() => {
+    const socket = socketService.getSocket();
+    const refreshReviews = async (payload: { sellerId: string }) => {
+      const response = await apiFetch('/api/dashboard/seller');
+      const data = await response.json();
+      if (response.ok && data.success) setReviewStats(data.reviewStats || null);
+    };
+    socket?.on('reviewCreated', refreshReviews);
+    socket?.on('reviewUpdated', refreshReviews);
+    socket?.on('reviewDeleted', refreshReviews);
+    return () => { socket?.off('reviewCreated', refreshReviews); socket?.off('reviewUpdated', refreshReviews); socket?.off('reviewDeleted', refreshReviews); };
   }, []);
 
   // Handle File Selection and Upload directly from computer
@@ -284,11 +302,13 @@ export default function SellerDashboardPage() {
           </div>
           <div>
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Rating Score</span>
-            <span className="text-xl sm:text-2xl font-black text-gray-900">4.98</span>
-            <span className="text-[11px] text-amber-600 font-medium block">100% 5-Star Reviews</span>
+            <span className="text-xl sm:text-2xl font-black text-gray-900">{reviewStats?.averageRating.toFixed(1) || '0.0'}</span>
+            <span className="text-[11px] text-amber-600 font-medium block">{reviewStats?.totalReviews || 0} verified reviews</span>
           </div>
         </div>
       </div>
+
+      {reviewStats ? <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-xs"><div className="mb-5 flex items-end justify-between"><div><h2 className="text-lg font-bold text-gray-900">Review analytics</h2><p className="text-xs text-gray-500">Ratings from completed orders</p></div><div className="text-right"><p className="text-2xl font-black text-gray-900">{reviewStats.averageRating.toFixed(1)} <span className="text-amber-400">★</span></p><p className="text-xs text-gray-500">{reviewStats.totalReviews} total reviews</p></div></div><div className="space-y-2">{reviewStats.breakdown.map(({ star, count }) => <div key={star} className="flex items-center gap-3 text-xs"><span className="w-10 font-semibold text-gray-600">{star} star</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-amber-400" style={{ width: `${reviewStats.totalReviews ? (count / reviewStats.totalReviews) * 100 : 0}%` }} /></div><span className="w-8 text-right font-semibold text-gray-600">{count}</span></div>)}</div></section> : <AnalyticsSkeleton />}
 
       {/* Status Updated Toast Notification */}
       {statusUpdatedId && (

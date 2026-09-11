@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const User = require("../models/User");
 const Gig = require("../models/Gig");
 const Order = require("../models/Order");
+const Review = require("../models/Review");
 const connectDB = require("../db");
 
 function sellerId(req) {
@@ -63,9 +64,16 @@ router.get("/seller", async (req, res) => {
     const orders = await Order.find({ sellerId: id })
       .sort({ createdAt: -1 })
       .lean();
+    const reviews = await Review.find({ sellerId: id }).select('rating').lean();
+    const reviewStats = {
+      averageRating: reviews.length ? Math.round((reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length) * 10) / 10 : 0,
+      totalReviews: reviews.length,
+      breakdown: [5, 4, 3, 2, 1].map((star) => ({ star, count: reviews.filter((review) => review.rating === star).length })),
+    };
     res.json({
       success: true,
       user: profileSummary(user),
+      reviewStats,
       gigs: gigs.map((gig) => ({
         id: gig.id || gig._id.toString(),
         title: gig.title,

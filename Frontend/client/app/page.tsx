@@ -292,7 +292,7 @@ export default function HomePage() {
           <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-gray-100 bg-gradient-to-br from-gray-900 to-gray-800 p-8 text-white">
             <div className="space-y-4">
               <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider inline-block">
-                Fiverr Pro Enterprise
+                Digiwork Pro Enterprise
               </span>
               <h3 className="text-2xl sm:text-3xl font-bold leading-tight">
                 Scale your business with the top 1% vetted freelance talent

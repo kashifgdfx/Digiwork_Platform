@@ -7,6 +7,8 @@ const User = require('../models/User');
 const connectDB = require('../db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'tumhara_super_secret_key_yahan_hoga';
+const activeUsers = new Map();
+let ioInstance = null;
 
 function parseTokenFromHandshake(socket) {
   const authToken = socket.handshake.auth?.token;
@@ -24,6 +26,7 @@ function parseTokenFromHandshake(socket) {
 function buildMessagePayload(message, senderName = '', senderAvatar = '') {
   return {
     ...message.toObject(),
+    id: message.id || message._id?.toString(),
     senderName,
     senderAvatar,
     timestamp: message.sentAt || message.createdAt,
@@ -39,6 +42,7 @@ function registerSocketServer(server, options = {}) {
       methods: ['GET', 'POST'],
     },
   });
+  ioInstance = io;
 
   io.use(async (socket, next) => {
     try {
@@ -73,12 +77,20 @@ function registerSocketServer(server, options = {}) {
 
   io.on('connection', (socket) => {
     const userId = socket.user.id;
+    activeUsers.set(userId, socket.id);
     socket.join(`user:${userId}`);
+    io.emit('user_online', { userId, online: true });
 
     socket.emit('presence:update', {
       userId,
       online: true,
       lastSeen: null,
+    });
+
+    socket.on('join', (targetUserId) => {
+      const roomId = targetUserId || userId;
+      socket.join(`user:${roomId}`);
+      if (roomId === userId) activeUsers.set(userId, socket.id);
     });
 
     socket.on('join-user', () => {
@@ -138,30 +150,75 @@ function registerSocketServer(server, options = {}) {
           deliveredAt: null,
           seenAt: null,
           status: 'sent',
+          isRead: false,
         });
 
         const unreadField = receiverId === conversation.buyerId ? 'unreadCountBuyer' : 'unreadCountSeller';
-        const updateDoc = {
-          $set: {
-            lastMessage: message.text,
-            lastMessageTimestamp: message.sentAt,
+        const updatedConversation = await Conversation.findOneAndUpdate(
+          { _id: conversation._id },
+          {
+            $set: {
+              lastMessage: message.text,
+              lastMessageTimestamp: message.sentAt,
+            },
+            $inc: { [unreadField]: 1 },
           },
-          $inc: { [unreadField]: 1 },
-        };
-
-        await Conversation.updateOne({ _id: conversation._id }, updateDoc);
+          { new: true }
+        ).lean();
 
         const payload = buildMessagePayload(message, socket.user.name, socket.user.avatar || '');
+        const eventPayload = { message: payload, conversation: updatedConversation, unreadCount: updatedConversation?.[unreadField] || 0 };
 
-        io.to(`conversation:${conversationId}`).emit('receive-message', payload);
-        io.to(`user:${receiverId}`).emit('message:received', {
-          ...payload,
-          receiverId,
-        });
-        socket.emit('message:sent', payload);
+        io.to(`conversation:${conversationId}`).emit('new_message', eventPayload);
+        io.to(`user:${receiverId}`).emit('new_message', eventPayload);
+        io.to(`user:${userId}`).emit('message_sent', { message: payload, conversation: updatedConversation });
+        socket.emit('message_sent', { message: payload, conversation: updatedConversation });
       } catch (error) {
         console.error('Socket send-message error:', error);
         socket.emit('message:error', { message: 'Unable to send message' });
+      }
+    });
+
+    socket.on('mark_read', async ({ conversationId }) => {
+      try {
+        if (!conversationId) return;
+        await connectDB();
+
+        const conversation = await Conversation.findOne({ id: conversationId }).lean();
+        if (!conversation) return;
+
+        const receiverId = userId;
+        const senderId = conversation.buyerId === receiverId ? conversation.sellerId : conversation.buyerId;
+
+        await Message.updateMany(
+          {
+            conversationId,
+            receiverId,
+            isRead: false,
+          },
+          {
+            $set: {
+              isRead: true,
+              seenAt: new Date(),
+              status: 'seen',
+            },
+          }
+        );
+
+        if (conversation.unreadCountBuyer > 0 && conversation.buyerId === receiverId) {
+          await Conversation.updateOne({ _id: conversation._id }, { $set: { unreadCountBuyer: 0 } });
+        }
+        if (conversation.unreadCountSeller > 0 && conversation.sellerId === receiverId) {
+          await Conversation.updateOne({ _id: conversation._id }, { $set: { unreadCountSeller: 0 } });
+        }
+
+        io.to(`user:${senderId}`).emit('messages_read', {
+          conversationId,
+          readerId: receiverId,
+          seenAt: new Date(),
+        });
+      } catch (error) {
+        console.error('Socket mark_read error:', error);
       }
     });
 
@@ -174,11 +231,12 @@ function registerSocketServer(server, options = {}) {
           $set: {
             seenAt: new Date(),
             status: 'seen',
+            isRead: true,
           },
         };
 
         if (messageId) {
-          await Message.updateOne({ _id: messageId }, update);
+          await Message.updateOne({ id: messageId }, update);
         } else {
           await Message.updateMany({ conversationId, senderId, receiverId: userId }, update);
         }
@@ -196,12 +254,8 @@ function registerSocketServer(server, options = {}) {
     });
 
     socket.on('disconnect', () => {
-      const activeSockets = io.sockets.adapter.rooms.get(`user:${userId}`);
-      if (activeSockets) {
-        activeSockets.delete(socket.id);
-      }
-
-      io.emit('presence:update', {
+      activeUsers.delete(userId);
+      io.emit('user_offline', {
         userId,
         online: false,
         lastSeen: new Date(),
@@ -212,4 +266,5 @@ function registerSocketServer(server, options = {}) {
   return io;
 }
 
-module.exports = { registerSocketServer };
+function getIO() { return ioInstance; }
+module.exports = { registerSocketServer, getIO };

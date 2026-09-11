@@ -5,6 +5,7 @@ import {
   Conversation,
   Gig,
   Message,
+  NotificationItem,
   Order,
   OrderStatus,
   User,
@@ -32,6 +33,7 @@ interface AppContextType {
   refreshCurrentUser: () => Promise<User | null>;
   updateCurrentUser: (user: User) => void;
   loadMessages: (conversationId: string) => Promise<void>;
+  markConversationAsRead: (conversationId: string) => void;
   updateProfile: (updates: Partial<User>) => Promise<User>;
   addProfileItem: (collection: string, item: unknown) => Promise<User>;
   updateProfileItem: (collection: string, id: string, item: unknown) => Promise<User>;
@@ -52,6 +54,8 @@ interface AppContextType {
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   conversations: Conversation[];
   messages: Record<string, Message[]>;
+  notifications: NotificationItem[];
+  unreadMessagesCount: number;
   sendMessage: (conversationId: string, text: string) => Promise<void>;
   startConversationWithSeller: (seller: User, gig?: Gig) => Promise<string>;
   messagingLoading: boolean;
@@ -155,6 +159,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [favorites, setFavorites] = useState<string[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
   const [messagingLoading, setMessagingLoading] = useState(false);
   const [messagingError, setMessagingError] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
@@ -180,6 +186,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setProfileLoading(false);
       setIsAuthLoading(false);
+    }
+  };
+
+  const playIncomingMessageSound = () => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const audio = new Audio('/sounds/message.mp3');
+      audio.volume = 0.4;
+      audio.play().catch(() => undefined);
+    } catch {
+      // Ignore audio errors in unsupported browsers.
+    }
+  };
+
+  const triggerBrowserNotification = (senderName: string, senderAvatar: string, text: string, conversationId: string) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+
+    if (Notification.permission === 'granted') {
+      const notification = new Notification('New Message', {
+        body: `${senderName} sent you a message`,
+        icon: senderAvatar || '/images/default-avatar.png',
+      });
+
+      notification.onclick = () => {
+        window.focus();
+        const url = `/messages?conversationId=${encodeURIComponent(conversationId)}`;
+        window.location.href = url;
+      };
     }
   };
 
@@ -247,9 +282,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Unable to load messages');
 
+      const nextMessages = (data.messages || []).map((message: Message) => ({
+        ...message,
+        isRead: message.isRead ?? true,
+        status: message.status || (message.isRead ? 'seen' : 'sent'),
+      }));
+
       setMessages((prev) => ({
         ...prev,
-        [conversationId]: data.messages || [],
+        [conversationId]: nextMessages,
       }));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to load messages';
@@ -259,6 +300,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setMessagesLoading(false);
       setMessagingLoading(false);
     }
+  };
+
+  const markConversationAsRead = (conversationId: string) => {
+    if (!conversationId || !currentUser) return;
+
+    const unreadForConversation = conversations.find((conversation) => conversation.id === conversationId)?.unreadCount || 0;
+
+    setMessages((prev) => ({
+      ...prev,
+      [conversationId]: (prev[conversationId] || []).map((message) =>
+        message.senderId !== currentUser.id
+          ? { ...message, isRead: true, status: 'seen', seenAt: new Date().toISOString() }
+          : message
+      ),
+    }));
+
+    setConversations((prev) => prev.map((conversation) =>
+      conversation.id === conversationId ? { ...conversation, unreadCount: 0 } : conversation
+    ));
+
+    if (unreadForConversation > 0) {
+      setUnreadMessagesCount((prev) => Math.max(0, prev - unreadForConversation));
+    }
+
+    const socket = socketService.getSocket();
+    socket?.emit('mark_read', { conversationId });
   };
 
   const updateCurrentUser = (user: User) => setCurrentUser(normalizeUser(user));
@@ -305,33 +372,112 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!currentUser) return;
 
-    const socket = socketService.connect();
+    const socket = socketService.connect(currentUser.id);
     socket.emit('join-user');
+    socket.emit('join', currentUser.id);
 
-    const handleReceiveMessage = (payload: any) => {
+    const handleNewMessage = (payload: any) => {
+      const conversationId = payload.conversationId;
+      const senderIsCurrentUser = payload.senderId === currentUser.id;
       const message: Message = {
         id: payload.id || `msg-${Date.now()}`,
-        conversationId: payload.conversationId,
+        conversationId,
         senderId: payload.senderId,
-        senderName: payload.senderName || 'User',
-        senderAvatar: payload.senderAvatar || '',
+        senderName: payload.senderName || payload.sender?.name || 'User',
+        senderAvatar: payload.senderAvatar || payload.sender?.avatar || '',
         text: payload.text,
         timestamp: new Date(payload.timestamp || payload.sentAt || Date.now()).toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
         }),
-        isRead: payload.senderId === currentUser.id,
+        isRead: senderIsCurrentUser,
+        status: senderIsCurrentUser ? 'seen' : payload.status || 'sent',
       };
 
-      upsertMessageIntoState(payload.conversationId, message);
+      setMessages((prev) => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []), message],
+      }));
 
-      if (payload.senderId !== currentUser.id) {
-        setConversations((prev) => prev.map((conversation) =>
-          conversation.id === payload.conversationId
-            ? { ...conversation, lastMessage: payload.text, lastMessageTimestamp: message.timestamp, unreadCount: conversation.unreadCount + 1 }
-            : conversation
-        ));
+      setConversations((prev) => {
+        const existing = prev.find((conversation) => conversation.id === conversationId);
+        const next = prev.filter((conversation) => conversation.id !== conversationId);
+
+        const updated = {
+          ...(existing || {
+            id: conversationId,
+            participant: {
+              id: payload.senderId || 'unknown-user',
+              name: payload.senderName || 'New contact',
+              username: payload.senderName || 'new-contact',
+              email: '',
+              avatar: payload.senderAvatar || '',
+              level: 'New Seller',
+              rating: 0,
+              reviewCount: 0,
+              country: '',
+              memberSince: '',
+              responseTime: '',
+              bio: '',
+              languages: [],
+              skills: [],
+            } as User,
+            lastMessage: '',
+            lastMessageTimestamp: '',
+            unreadCount: 0,
+          }),
+          lastMessage: payload.text,
+          lastMessageTimestamp: message.timestamp,
+          unreadCount: senderIsCurrentUser ? existing?.unreadCount || 0 : (existing?.unreadCount || 0) + 1,
+        };
+
+        return [updated, ...next];
+      });
+
+      if (!senderIsCurrentUser) {
+        setUnreadMessagesCount((prev) => prev + 1);
+        setNotifications((prev) => [{
+          id: payload.id || `notif-${Date.now()}`,
+          type: 'message',
+          conversationId,
+          senderId: payload.senderId,
+          senderName: payload.senderName || 'User',
+          senderAvatar: payload.senderAvatar || '',
+          text: payload.text,
+          timestamp: new Date(payload.timestamp || payload.sentAt || Date.now()).toISOString(),
+          isRead: false,
+        }, ...prev]);
+        playIncomingMessageSound();
+        triggerBrowserNotification(
+          payload.senderName || 'User',
+          payload.senderAvatar || '/images/default-avatar.png',
+          payload.text,
+          conversationId,
+        );
       }
+    };
+
+    const handleMessageSent = (payload: any) => {
+      const conversationId = payload.conversationId;
+      const message: Message = {
+        id: payload.id || `msg-${Date.now()}`,
+        conversationId,
+        senderId: payload.senderId,
+        senderName: payload.senderName || currentUser.name,
+        senderAvatar: payload.senderAvatar || currentUser.avatar,
+        text: payload.text,
+        timestamp: new Date(payload.timestamp || payload.sentAt || Date.now()).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        isRead: true,
+        status: 'sent',
+      };
+
+      setMessages((prev) => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []), message],
+      }));
     };
 
     const handleTypingStart = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
@@ -349,31 +495,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     };
 
-    const handleSeen = ({ conversationId, senderId }: { conversationId: string; senderId: string }) => {
+    const handleMessagesRead = ({ conversationId, senderId }: { conversationId: string; senderId: string }) => {
+      if (senderId === currentUser.id) return;
+
       setMessages((prev) => ({
         ...prev,
         [conversationId]: (prev[conversationId] || []).map((item) =>
-          item.senderId === senderId ? { ...item, isRead: true } : item
+          item.senderId === currentUser.id ? { ...item, isRead: true, seenAt: new Date().toISOString(), status: 'seen' } : item
         ),
+      }));
+
+      const unreadForConversation = conversations.find((conversation) => conversation.id === conversationId)?.unreadCount || 0;
+      setConversations((prev) => prev.map((conversation) =>
+        conversation.id === conversationId ? { ...conversation, unreadCount: 0 } : conversation
+      ));
+      if (unreadForConversation > 0) {
+        setUnreadMessagesCount((prev) => Math.max(0, prev - unreadForConversation));
+      }
+    };
+
+    const handlePresenceUpdate = ({ userId, online }: { userId: string; online: boolean }) => {
+      if (!userId || userId === currentUser.id) return;
+      setConversations((prev) => prev.map((conversation) => {
+        if (conversation.participant?.id === userId) {
+          return {
+            ...conversation,
+            participant: {
+              ...conversation.participant,
+              online,
+            } as User,
+          };
+        }
+        return conversation;
       }));
     };
 
-    socket.on('receive-message', handleReceiveMessage);
+    socket.on('new_message', handleNewMessage);
+    socket.on('receive-message', handleNewMessage);
+    socket.on('message_sent', handleMessageSent);
+    socket.on('message:sent', handleMessageSent);
+    socket.on('messages_read', handleMessagesRead);
+    socket.on('user_online', handlePresenceUpdate);
+    socket.on('user_offline', handlePresenceUpdate);
     socket.on('typing:start', handleTypingStart);
     socket.on('typing:stop', handleTypingStop);
-    socket.on('message:seen', handleSeen);
+    socket.on('message:seen', handleMessagesRead);
 
     conversations.forEach((conversation) => {
       socket.emit('join-conversation', { conversationId: conversation.id });
     });
 
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => undefined);
+    }
+
     return () => {
-      socket.off('receive-message', handleReceiveMessage);
+      socket.off('new_message', handleNewMessage);
+      socket.off('receive-message', handleNewMessage);
+      socket.off('message_sent', handleMessageSent);
+      socket.off('message:sent', handleMessageSent);
+      socket.off('messages_read', handleMessagesRead);
+      socket.off('user_online', handlePresenceUpdate);
+      socket.off('user_offline', handlePresenceUpdate);
       socket.off('typing:start', handleTypingStart);
       socket.off('typing:stop', handleTypingStop);
-      socket.off('message:seen', handleSeen);
+      socket.off('message:seen', handleMessagesRead);
     };
-  }, [currentUser, conversations]);
+  }, [currentUser?.id, unreadMessagesCount]);
 
   // 1. Initial LocalStorage Read for instantaneous render
   useEffect(() => {
@@ -739,6 +927,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         sendMessage,
         loadMessages,
+        markConversationAsRead,
         loadConversations,
         currentUser,
         setCurrentUser,
@@ -773,6 +962,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateOrderStatus,
         conversations,
         messages,
+        notifications,
+        unreadMessagesCount,
         messagingLoading,
         messagingError,
         startConversationWithSeller,
