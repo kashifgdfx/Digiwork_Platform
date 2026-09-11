@@ -222,12 +222,28 @@ router.post("/forgot-password", async (req, res) => {
         (isProduction() ? "https://digiwork-platform.vercel.app" : "http://localhost:3000");
       const resetLink = `${frontendBaseUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
-      await sendPasswordResetEmail({
+      const emailResult = await sendPasswordResetEmail({
         to: user.email,
         name: user.name || user.username,
         resetLink,
         expiresInMinutes: 15,
       });
+
+      if (!emailResult.success) {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("Password reset link for local testing:", resetLink);
+          return res.status(200).json({
+            success: true,
+            message: "Email service is not configured. Reset link generated for local testing.",
+            debugResetLink: resetLink,
+          });
+        }
+
+        return res.status(503).json({
+          success: false,
+          error: "Email service is not configured. Please configure SMTP to send password reset links.",
+        });
+      }
     }
 
     return res.status(200).json({
