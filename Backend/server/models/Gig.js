@@ -4,6 +4,8 @@ const FeatureSchema = new mongoose.Schema(
   { name: String, included: { type: Boolean, default: true } },
   { _id: false },
 );
+
+
 const PackageSchema = new mongoose.Schema(
   {
     name: {

@@ -23,6 +23,21 @@ function parseTokenFromHandshake(socket) {
   return null;
 }
 
+async function setPresenceStatus(userId, { online, socketId = null, lastSeen = null }) {
+  if (!userId) return;
+  await connectDB();
+  await User.updateOne(
+    { id: userId },
+    {
+      $set: {
+        isOnline: Boolean(online),
+        socketId,
+        lastSeen: lastSeen || (online ? new Date() : new Date()),
+      },
+    }
+  );
+}
+
 function buildMessagePayload(message, senderName = '', senderAvatar = '') {
   return {
     ...message.toObject(),
@@ -79,7 +94,9 @@ function registerSocketServer(server, options = {}) {
     const userId = socket.user.id;
     activeUsers.set(userId, socket.id);
     socket.join(`user:${userId}`);
-    io.emit('user_online', { userId, online: true });
+
+    setPresenceStatus(userId, { online: true, socketId: socket.id, lastSeen: new Date() }).catch(() => undefined);
+    io.emit('user_online', { userId, online: true, lastSeen: new Date() });
 
     socket.emit('presence:update', {
       userId,
@@ -152,6 +169,31 @@ function registerSocketServer(server, options = {}) {
           status: 'sent',
           isRead: false,
         });
+
+        const receiverSocketId = activeUsers.get(receiverId);
+        const deliveredStatus = receiverSocketId ? 'delivered' : 'sent';
+
+        const deliveredAt = receiverSocketId ? new Date() : null;
+
+        if (receiverSocketId) {
+          io.to(`user:${receiverId}`).emit('message:delivered', {
+            conversationId,
+            messageId: message.id,
+            receiverId,
+            deliveredAt,
+          });
+        }
+
+        await Message.updateOne(
+          { id: message.id },
+          {
+            $set: {
+              status: deliveredStatus,
+              deliveredAt,
+              isRead: Boolean(receiverSocketId ? false : false),
+            },
+          }
+        );
 
         const unreadField = receiverId === conversation.buyerId ? 'unreadCountBuyer' : 'unreadCountSeller';
         const updatedConversation = await Conversation.findOneAndUpdate(
@@ -255,6 +297,7 @@ function registerSocketServer(server, options = {}) {
 
     socket.on('disconnect', () => {
       activeUsers.delete(userId);
+      setPresenceStatus(userId, { online: false, socketId: null, lastSeen: new Date() }).catch(() => undefined);
       io.emit('user_offline', {
         userId,
         online: false,

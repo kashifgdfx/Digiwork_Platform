@@ -84,6 +84,9 @@ const UserSchema = new mongoose.Schema({
   socialLinks: { type: SocialLinksSchema, default: () => ({}) },
   sellerMetrics: { type: MetricsSchema, default: () => ({}) },
   profileCompletion: { type: CompletionSchema, default: () => ({}) },
+  isOnline: { type: Boolean, default: false },
+  lastSeen: { type: Date, default: null },
+  socketId: { type: String, default: null },
   resetPasswordToken: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },
 }, { timestamps: true });
