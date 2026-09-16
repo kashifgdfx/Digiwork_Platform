@@ -40,6 +40,17 @@ class SocketService {
     if (!this.socket) return;
     this.socket.emit(event, payload);
   }
+
+  // 👇 Yeh do naye methods zaroor add karein listener ke liye
+  on(event: string, callback: (data: any) => void) {
+    if (!this.socket) return;
+    this.socket.on(event, callback);
+  }
+
+  off(event: string, callback?: (data: any) => void) {
+    if (!this.socket) return;
+    this.socket.off(event, callback);
+  }
 }
 
 export const socketService = new SocketService();

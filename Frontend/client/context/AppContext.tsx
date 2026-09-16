@@ -112,6 +112,8 @@ function normalizeUser(user: Partial<User> & { id: string; name?: string; email?
   };
 }
 
+
+
 function normalizeConversation(conversation: Conversation, fallbackParticipant?: User): Conversation {
   const payload = conversation as Conversation & {
     _id?: string;
@@ -464,10 +466,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: senderIsCurrentUser ? 'seen' : payload.status || 'sent',
       };
 
-      setMessages((prev) => ({
-        ...prev,
-        [conversationId]: [...(prev[conversationId] || []), message],
-      }));
+      setMessages((prev) => {
+        const existingMessages = prev[conversationId] || [];
+        if (existingMessages.some((existingMessage) => existingMessage.id === message.id)) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [conversationId]: [...existingMessages, message],
+        };
+      });
 
       setConversations((prev) => {
         const existing = prev.find((conversation) => conversation.id === conversationId);
@@ -547,10 +556,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'sent',
       };
 
-      setMessages((prev) => ({
-        ...prev,
-        [conversationId]: [...(prev[conversationId] || []), message],
-      }));
+      setMessages((prev) => {
+        const existingMessages = prev[conversationId] || [];
+        if (existingMessages.some((existingMessage) => existingMessage.id === message.id)) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [conversationId]: [...existingMessages, message],
+        };
+      });
     };
 
     const handleTypingStart = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
@@ -607,6 +623,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     };
 
+    const handlePresenceSnapshot = (
+      presence: Array<{ userId: string; online: boolean; lastSeen?: string | null }>,
+    ) => {
+      setUserPresence((prev) => {
+        const next = { ...prev };
+        for (const entry of presence) {
+          if (entry.userId) {
+            next[entry.userId] = {
+              online: Boolean(entry.online),
+              lastSeen: entry.lastSeen || null,
+            };
+          }
+        }
+        return next;
+      });
+    };
+
     const handleOrderEvent = (payload: { order?: Order }) => {
       if (payload?.order) updateOrderFromRealtime(payload.order);
     };
@@ -650,6 +683,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     socket.on('messages_read', handleMessagesRead);
     socket.on('user_online', handlePresenceUpdate);
     socket.on('user_offline', handlePresenceUpdate);
+    socket.on('presence:update', handlePresenceUpdate);
+    socket.on('presence:snapshot', handlePresenceSnapshot);
     socket.on('typing:start', handleTypingStart);
     socket.on('typing:stop', handleTypingStop);
     socket.on('message:seen', handleMessagesRead);
@@ -678,6 +713,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       socket.off('messages_read', handleMessagesRead);
       socket.off('user_online', handlePresenceUpdate);
       socket.off('user_offline', handlePresenceUpdate);
+      socket.off('presence:update', handlePresenceUpdate);
+      socket.off('presence:snapshot', handlePresenceSnapshot);
       socket.off('typing:start', handleTypingStart);
       socket.off('typing:stop', handleTypingStop);
       socket.off('message:seen', handleMessagesRead);
@@ -689,7 +726,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       socket.off('order:update', handleOrderEvent);
       socket.off('notification', handleNotification);
     };
-  }, [currentUser?.id, unreadMessagesCount]);
+  }, [currentUser?.id]);
 
   // 1. Initial LocalStorage Read for instantaneous render
   useEffect(() => {
@@ -916,28 +953,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sendMessage = async (conversationId: string, text: string) => {
     if (!currentUser || !text.trim()) return;
 
+    const clientMessageId = `msg-${crypto.randomUUID()}`;
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const optimisticMessage: Message = {
-      id: `msg-${Date.now()}`,
+      id: clientMessageId,
       conversationId,
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
       text: text.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp,
       isRead: true,
+      status: 'sent',
     };
 
-    setMessages((prev) => ({
-      ...prev,
-      [conversationId]: [...(prev[conversationId] || []), optimisticMessage],
-    }));
+    setMessages((prev) => {
+      const existingMessages = prev[conversationId] || [];
+      if (existingMessages.some((message) => message.id === clientMessageId)) return prev;
+
+      return {
+        ...prev,
+        [conversationId]: [...existingMessages, optimisticMessage],
+      };
+    });
 
     setConversations((prev) => prev.map((conversation) =>
       conversation.id === conversationId
         ? {
             ...conversation,
-            lastMessage: text.trim(),
-            lastMessageTimestamp: optimisticMessage.timestamp,
+            lastMessage: optimisticMessage.text,
+            lastMessageTimestamp: timestamp,
             unreadCount: 0,
           }
         : conversation
@@ -957,28 +1002,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const payload = {
         conversationId,
-        senderId: currentUser.id,
         receiverId,
         text: text.trim(),
+        clientMessageId,
       };
 
-      const response = await apiFetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Unable to send message');
-
       const socket = socketService.getSocket();
-      socket?.emit('send-message', {
-        conversationId,
-        receiverId: payload.receiverId,
-        text: text.trim(),
-        attachments: [],
-      });
+      if (!socket) throw new Error('Chat connection is unavailable. Please try again.');
 
-      await loadConversations(currentUser.id);
+      socket.emit('send-message', { ...payload, attachments: [] });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to send message';
       setMessagingError(message);

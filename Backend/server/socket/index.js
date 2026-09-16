@@ -93,22 +93,29 @@ function registerSocketServer(server, options = {}) {
 
   io.on('connection', (socket) => {
     const userId = socket.user.id;
-    activeUsers.set(userId, socket.id);
+    const userSockets = activeUsers.get(userId) || new Set();
+    const wasOffline = userSockets.size === 0;
+    userSockets.add(socket.id);
+    activeUsers.set(userId, userSockets);
     socket.join(`user:${userId}`);
 
-    setPresenceStatus(userId, { online: true, socketId: socket.id, lastSeen: new Date() }).catch(() => undefined);
-    io.emit('user_online', { userId, online: true, lastSeen: new Date() });
+    if (wasOffline) {
+      setPresenceStatus(userId, { online: true, socketId: socket.id, lastSeen: new Date() }).catch(() => undefined);
+      io.emit('user_online', { userId, online: true, lastSeen: null });
+    }
 
-    socket.emit('presence:update', {
-      userId,
-      online: true,
-      lastSeen: null,
-    });
+    socket.emit(
+      'presence:snapshot',
+      Array.from(activeUsers.keys()).map((activeUserId) => ({
+        userId: activeUserId,
+        online: true,
+        lastSeen: null,
+      }))
+    );
 
     socket.on('join', (targetUserId) => {
       const roomId = targetUserId || userId;
       socket.join(`user:${roomId}`);
-      if (roomId === userId) activeUsers.set(userId, socket.id);
     });
 
     socket.on('join-user', () => {
@@ -139,7 +146,7 @@ function registerSocketServer(server, options = {}) {
       });
     });
 
-    socket.on('send-message', async ({ conversationId, receiverId, text, attachments = [] }) => {
+    socket.on('send-message', async ({ conversationId, receiverId, text, attachments = [], clientMessageId }) => {
       try {
         if (!conversationId || !receiverId || !text || !String(text).trim()) {
           return socket.emit('message:error', { message: 'Missing message payload' });
@@ -157,8 +164,12 @@ function registerSocketServer(server, options = {}) {
           return socket.emit('message:error', { message: 'User not in this conversation' });
         }
 
+        const messageId = typeof clientMessageId === 'string' && /^msg-[A-Za-z0-9-]{8,100}$/.test(clientMessageId)
+          ? clientMessageId
+          : `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
         const message = await Message.create({
-          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          id: messageId,
           conversationId,
           senderId: userId,
           receiverId,
@@ -171,12 +182,12 @@ function registerSocketServer(server, options = {}) {
           isRead: false,
         });
 
-        const receiverSocketId = activeUsers.get(receiverId);
-        const deliveredStatus = receiverSocketId ? 'delivered' : 'sent';
+        const receiverIsOnline = Boolean(activeUsers.get(receiverId)?.size);
+        const deliveredStatus = receiverIsOnline ? 'delivered' : 'sent';
 
-        const deliveredAt = receiverSocketId ? new Date() : null;
+        const deliveredAt = receiverIsOnline ? new Date() : null;
 
-        if (receiverSocketId) {
+        if (receiverIsOnline) {
           io.to(`user:${receiverId}`).emit('message:delivered', {
             conversationId,
             messageId: message.id,
@@ -308,13 +319,19 @@ function registerSocketServer(server, options = {}) {
     });
 
     socket.on('disconnect', () => {
-      activeUsers.delete(userId);
-      setPresenceStatus(userId, { online: false, socketId: null, lastSeen: new Date() }).catch(() => undefined);
-      io.emit('user_offline', {
-        userId,
-        online: false,
-        lastSeen: new Date(),
-      });
+      const userSockets = activeUsers.get(userId);
+      userSockets?.delete(socket.id);
+
+      if (!userSockets?.size) {
+        activeUsers.delete(userId);
+        const lastSeen = new Date();
+        setPresenceStatus(userId, { online: false, socketId: null, lastSeen }).catch(() => undefined);
+        io.emit('user_offline', {
+          userId,
+          online: false,
+          lastSeen,
+        });
+      }
     });
   });
 

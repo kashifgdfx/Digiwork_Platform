@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { useApp } from '@/context/AppContext';
 import { MessagesSkeleton } from '@/components/skeletons/MessagesSkeleton';
+import  {socketService}  from '@/lib/socket'
 import { ConversationListSkeleton } from '@/components/skeletons/ConversationListSkeleton';
 import {
   ArrowLeft,
@@ -58,12 +59,43 @@ function MessagesContent() {
     : activeConvId || conversations[0]?.id || '';
   const activeConv = conversations.find((c) => c.id === selectedConvId);
   const activeMessages = selectedConvId ? messages[selectedConvId] || [] : [];
+  const uniqueActiveMessages = activeMessages.filter(
+    (message, index) => activeMessages.findIndex((item) => item.id === message.id) === index,
+  );
 
   // Typing indicator (auto hides 1500ms after the last typing event).
   const [showTyping, setShowTyping] = useState(false);
   const typingHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingEmitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+
+  // 👇 Yeh useEffect apne MessagesContent component ke andar add karein
+useEffect(() => {
+  const socket = socketService.getSocket();
+  if (!socket || !selectedConvId) return;
+
+  // 1. Backend ke mutabiq conversation room join karo
+  socket.emit('join-conversation', { conversationId: selectedConvId });
+
+  // 2. Real-time incoming message listen karo
+  const handleNewMessage = (data: any) => {
+    if (data?.message && data.message.conversationId === selectedConvId) {
+      // Yahan check karo ki agar aapke AppContext ya local state mein add karne ka function hai
+      // Ya phir aap directly messages state update kar sakte ho.
+      // Agar aapka AppContext handle karta hai, toh ensure karo ki naya message state mein push ho.
+      console.log("New live message received:", data.message);
+      
+      // Note: Agar AppContext ke through messages update hote hain, toh AppContext me bhi 
+      // socket.on('new_message') listener hona chahiye taaki baaki pages par bhi notification/count update ho.
+    }
+  };
+
+  socket.on('new_message', handleNewMessage);
+
+  return () => {
+    socket.off('new_message', handleNewMessage);
+  };
+}, [selectedConvId]);
 
 useEffect(() => {
   const activeTypers = selectedConvId
@@ -390,7 +422,11 @@ const handleSend = async (e?: React.FormEvent) => {
                         {(activeConv.participant?.name || 'U').charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 border-2 border-white rounded-full ${
+                        presenceFor(activeConv.participant?.id).online ? 'bg-emerald-500' : 'bg-gray-300'
+                      }`}
+                    />
                   </div>
 
                   <div className="min-w-0">
@@ -442,7 +478,7 @@ const handleSend = async (e?: React.FormEvent) => {
                   </div>
                 </div>
 
-                {activeMessages.map((msg) => {
+                {uniqueActiveMessages.map((msg) => {
                   const isMe = msg.senderId === currentUser.id;
                   return (
                     <div
