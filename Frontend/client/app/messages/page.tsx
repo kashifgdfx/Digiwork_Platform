@@ -65,17 +65,31 @@ function MessagesContent() {
   const typingEmitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
 
-  useEffect(() => {
-    const activeTypers = (typingUsers[selectedConvId] || []).filter((id) => id !== currentUser?.id);
-    if (activeTypers.length > 0) {
-      setShowTyping(true);
-      if (typingHideRef.current) clearTimeout(typingHideRef.current);
-      typingHideRef.current = setTimeout(() => setShowTyping(false), 1500);
+useEffect(() => {
+  const activeTypers = selectedConvId
+    ? (typingUsers[selectedConvId] || []).filter(
+        (id: string) => id !== currentUser?.id
+      )
+    : [];
+
+  if (activeTypers.length > 0) {
+    setShowTyping(true);
+
+    if (typingHideRef.current) {
+      clearTimeout(typingHideRef.current);
     }
-    return () => {
-      if (typingHideRef.current) clearTimeout(typingHideRef.current);
-    };
-  }, [typingUsers, selectedConvId, currentUser?.id]);
+
+    typingHideRef.current = setTimeout(() => {
+      setShowTyping(false);
+    }, 1500);
+  }
+
+  return () => {
+    if (typingHideRef.current) {
+      clearTimeout(typingHideRef.current);
+    }
+  };
+}, [typingUsers, selectedConvId, currentUser?.id]);
 
   useEffect(() => {
     setShowTyping(false);
@@ -450,11 +464,11 @@ const handleSend = async (e?: React.FormEvent) => {
                         {isMe && (
                           <>
                             {msg.status === 'seen' ? (
-                              <CheckCheck size={13} className="text-[#1dbf73]" title="Seen" />
+                              <CheckCheck size={13} className="text-[#1dbf73]" />
                             ) : msg.status === 'delivered' ? (
-                              <CheckCheck size={13} className="text-slate-400" title="Delivered" />
+                              <CheckCheck size={13} className="text-slate-400"  />
                             ) : (
-                              <Check size={13} className="text-slate-400" title="Sent" />
+                              <Check size={13} className="text-slate-400"  />
                             )}
                           </>
                         )}
