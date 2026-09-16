@@ -1,7 +1,9 @@
 const router = require('express').Router();
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
+const User = require('../models/User');
 const connectDB = require('../db');
+const { getIO } = require('../socket');
 
 const requiredText = (value) => typeof value === 'string' && value.trim().length > 0;
 
@@ -20,7 +22,7 @@ router.get('/:conversationId', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { conversationId, senderId, receiverId, text } = req.body || {};
+  const { conversationId, senderId, receiverId, text, clientMessageId } = req.body || {};
   if (![conversationId, senderId, receiverId, text].every(requiredText)) {
     return res.status(400).json({ success: false, error: 'conversationId, senderId, receiverId, and text are required' });
   }
@@ -37,8 +39,11 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Both users must belong to the conversation' });
     }
 
+    const messageId = typeof clientMessageId === 'string' && /^msg-[A-Za-z0-9-]{8,100}$/.test(clientMessageId)
+      ? clientMessageId
+      : `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const message = await Message.create({
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: messageId,
       conversationId: conversation.id,
       senderId: senderId.trim(),
       receiverId: receiverId.trim(),
@@ -46,12 +51,38 @@ router.post('/', async (req, res) => {
     });
 
     const unreadField = receiverId.trim() === conversation.buyerId ? 'unreadCountBuyer' : 'unreadCountSeller';
-    await Conversation.updateOne({ _id: conversation._id }, {
-      $set: { lastMessage: message.text, lastMessageTimestamp: message.createdAt },
-      $inc: { [unreadField]: 1 },
-    });
+    const updatedConversation = await Conversation.findOneAndUpdate(
+      { _id: conversation._id },
+      {
+        $set: { lastMessage: message.text, lastMessageTimestamp: message.createdAt },
+        $inc: { [unreadField]: 1 },
+      },
+      { new: true }
+    ).lean();
 
-    return res.status(201).json({ success: true, message });
+    const sender = await User.findOne({ id: senderId.trim() }).select('name avatar').lean();
+    const storedMessage = message.toObject();
+    const messagePayload = {
+      ...storedMessage,
+      id: storedMessage.id,
+      senderName: sender?.name || 'User',
+      senderAvatar: sender?.avatar || '',
+      timestamp: storedMessage.sentAt || storedMessage.createdAt,
+      status: storedMessage.status || 'sent',
+    };
+    const eventPayload = {
+      message: messagePayload,
+      conversation: updatedConversation,
+      unreadCount: updatedConversation?.[unreadField] || 0,
+    };
+    const io = getIO();
+
+    if (io) {
+      io.to(`user:${receiverId.trim()}`).emit('new_message', eventPayload);
+      io.to(`user:${senderId.trim()}`).emit('message_sent', eventPayload);
+    }
+
+    return res.status(201).json({ success: true, message: messagePayload });
   } catch (error) {
     console.error('Create message error:', error);
     return res.status(error.name === 'ValidationError' ? 400 : 500).json({

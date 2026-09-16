@@ -1002,15 +1002,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const payload = {
         conversationId,
+        senderId: currentUser.id,
         receiverId,
         text: text.trim(),
         clientMessageId,
       };
 
-      const socket = socketService.getSocket();
-      if (!socket) throw new Error('Chat connection is unavailable. Please try again.');
-
-      socket.emit('send-message', { ...payload, attachments: [] });
+      const response = await apiFetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to send message');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to send message';
       setMessagingError(message);
