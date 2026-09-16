@@ -124,7 +124,7 @@ export interface Gig {
   isFeatured?: boolean;
 }
 
-export type OrderStatus = 'in_progress' | 'delivered' | 'completed' | 'revision';
+export type OrderStatus = 'pending' | 'in_progress' | 'delivered' | 'completed' | 'cancelled' | 'revision';
 
 export interface Order {
   id: string;
@@ -215,14 +215,60 @@ export interface Conversation {
 
 export interface NotificationItem {
   id: string;
-  type: 'message';
-  conversationId: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar: string;
-  text: string;
-  timestamp: string;
-  isRead: boolean;
+  type: 'message' | 'order' | 'review' | 'gig';
+  title?: string;
+  message?: string;
+  link?: string;
+  meta?: Record<string, unknown>;
+  conversationId?: string;
+  senderId?: string;
+  senderName?: string;
+  senderAvatar?: string;
+  text?: string;
+  timestamp?: string;
+  createdAt?: string;
+  read?: boolean;
+  isRead?: boolean;
+}
+
+export interface GigAnalytics {
+  viewsToday: number;
+  viewsWeek: number;
+  viewsMonth: number;
+  uniqueVisitors: number;
+  totalOrders: number;
+  conversionRate: number;
+}
+
+export interface SellerPerformance {
+  totalOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  revenue: number;
+  averageRating: number;
+  responseRate: number;
+  responseTime: string;
+  level: SellerLevel;
+  completionRate: number;
+}
+
+export interface WorkSession {
+  id: string;
+  orderId: string;
+  sellerId: string;
+  startedAt: string;
+  endedAt?: string | null;
+  totalMinutes: number;
+  isRunning: boolean;
+}
+
+export interface WorkAnalytics {
+  lastActive: string | null;
+  totalSessions: number;
+  runningSession: WorkSession | null;
+  totalHours: number;
+  todayHours: number;
+  weeklyHours: number;
 }
 
 export interface Category {

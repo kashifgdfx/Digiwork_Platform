@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { OrderStatus } from '@/types';
-import { CheckCircle2, Clock, RotateCcw, Truck } from 'lucide-react';
+import { CheckCircle2, Clock, RotateCcw, Truck, XCircle as CrossIcon } from 'lucide-react';
 
 interface OrderStatusBadgeProps {
   status: OrderStatus;
@@ -30,6 +30,16 @@ export const OrderStatusBadge: React.FC<OrderStatusBadgeProps> = ({ status, size
       label: 'In Revision',
       bgColor: 'bg-amber-50 text-amber-700 border-amber-200',
       icon: RotateCcw,
+    },
+    pending: {
+      label: 'Pending',
+      bgColor: 'bg-gray-100 text-gray-700 border-gray-200',
+      icon: Clock,
+    },
+    cancelled: {
+      label: 'Cancelled',
+      bgColor: 'bg-rose-50 text-rose-700 border-rose-200',
+      icon: CrossIcon,
     },
   };
 

@@ -105,6 +105,8 @@ router.get("/seller", async (req, res) => {
       });
   }
 });
+
+
 router.patch("/seller", async (req, res) => {
   try {
     const id = sellerId(req);
@@ -141,6 +143,10 @@ router.patch("/seller", async (req, res) => {
         error: error.message || "Internal Server Error",
       });
   }
+});
+
+router.get("/seller/analytics", (_req, res) => {
+  return res.redirect(307, "/api/analytics/seller");
 });
 router.get('/buyer', async (req, res) => {
   try {

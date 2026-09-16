@@ -8,6 +8,7 @@ import { SellerDashboardSkeleton } from '@/components/skeletons/SellerDashboardS
 import { apiFetch } from '@/lib/api';
 import { SellerRatingStats } from '@/types';
 import { AnalyticsSkeleton } from '@/components/skeletons/AnalyticsSkeleton';
+import { SellerAnalyticsPanel } from '@/components/SellerAnalyticsPanel';
 import { socketService } from '@/lib/socket';
 import {
   CheckCircle2,
@@ -51,7 +52,7 @@ interface Order {
   packageTier: string;
   price: number;
   buyerName: string;
-  status: 'in_progress' | 'delivered' | 'completed';
+  status: 'pending' | 'in_progress' | 'delivered' | 'revision' | 'completed' | 'cancelled';
   deliveryDate: string;
 }
 
@@ -146,7 +147,9 @@ export default function SellerDashboardPage() {
 
   const displayGigs = gigs.length > 0 ? gigs : [];
 
-  const activeOrders = orders.filter((o) => o.status === 'in_progress');
+  const activeOrders = orders.filter((o) =>
+    ['pending', 'in_progress', 'delivered', 'revision'].includes(o.status),
+  );
   const deliveredOrders = orders.filter((o) => o.status === 'delivered');
   const completedOrders = orders.filter((o) => o.status === 'completed');
 
@@ -307,6 +310,9 @@ export default function SellerDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Seller Analytics: gig views, performance metrics, and work-session tracking */}
+      <SellerAnalyticsPanel />
 
       {reviewStats ? <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-xs"><div className="mb-5 flex items-end justify-between"><div><h2 className="text-lg font-bold text-gray-900">Review analytics</h2><p className="text-xs text-gray-500">Ratings from completed orders</p></div><div className="text-right"><p className="text-2xl font-black text-gray-900">{reviewStats.averageRating.toFixed(1)} <span className="text-amber-400">★</span></p><p className="text-xs text-gray-500">{reviewStats.totalReviews} total reviews</p></div></div><div className="space-y-2">{reviewStats.breakdown.map(({ star, count }) => <div key={star} className="flex items-center gap-3 text-xs"><span className="w-10 font-semibold text-gray-600">{star} star</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-amber-400" style={{ width: `${reviewStats.totalReviews ? (count / reviewStats.totalReviews) * 100 : 0}%` }} /></div><span className="w-8 text-right font-semibold text-gray-600">{count}</span></div>)}</div></section> : <AnalyticsSkeleton />}
 

@@ -10,7 +10,8 @@ const secret = () =>
   process.env.JWT_SECRET || "tumhara_super_secret_key_yahan_hoga";
 
 const isProduction = () =>
-  process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+  process.env.NODE_ENV === "production" ||
+  process.env.VERCEL_ENV === "production";
 
 const passwordStrengthRegex = {
   minLength: /.{8,}/,
@@ -90,13 +91,11 @@ router.post("/signup", async (req, res) => {
     await connectDB();
     const { name, username, email, password, country, bio } = req.body;
     if (!name || !username || !email || !password)
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error:
-            "Please fill in all required fields (name, username, email, password)",
-        });
+      return res.status(400).json({
+        success: false,
+        error:
+          "Please fill in all required fields (name, username, email, password)",
+      });
 
     if (!isStrongPassword(String(password))) {
       return res.status(400).json({
@@ -107,12 +106,10 @@ router.post("/signup", async (req, res) => {
     }
 
     if (await User.findOne({ $or: [{ email }, { username }] }))
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: "User with this email or username already exists",
-        });
+      return res.status(400).json({
+        success: false,
+        error: "User with this email or username already exists",
+      });
     const user = await User.create({
       id: `user-${Date.now()}`,
       name,
@@ -123,26 +120,22 @@ router.post("/signup", async (req, res) => {
       bio: bio || "",
       memberSince: String(new Date().getFullYear()),
     });
-    res
-      .status(201)
-      .json({
-        success: true,
-        message: "User registered successfully!",
-        user: {
-          id: user.id,
-          name: user.name,
-          username: user.username,
-          email: user.email,
-        },
-      });
+    res.status(201).json({
+      success: true,
+      message: "User registered successfully!",
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+      },
+    });
   } catch (error) {
     console.error("Signup error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: error.message || "Internal Server Error",
-      });
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
   }
 });
 
@@ -182,12 +175,10 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: error.message || "Internal Server Error",
-      });
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
   }
 });
 
@@ -201,9 +192,13 @@ router.post("/forgot-password", async (req, res) => {
       });
     }
 
-    const email = String(req.body?.email || "").trim().toLowerCase();
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
     if (!email) {
-      return res.status(400).json({ success: false, error: "Email is required." });
+      return res
+        .status(400)
+        .json({ success: false, error: "Email is required." });
     }
 
     await connectDB();
@@ -219,7 +214,9 @@ router.post("/forgot-password", async (req, res) => {
 
       const frontendBaseUrl =
         process.env.FRONTEND_URL ||
-        (isProduction() ? "https://digiwork-platform.vercel.app" : "http://localhost:3000");
+        (isProduction()
+          ? "https://digiwork-platform.vercel.app"
+          : "http://localhost:3000");
       const resetLink = `${frontendBaseUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
       const emailResult = await sendPasswordResetEmail({
@@ -234,14 +231,16 @@ router.post("/forgot-password", async (req, res) => {
           console.log("Password reset link for local testing:", resetLink);
           return res.status(200).json({
             success: true,
-            message: "Email service is not configured. Reset link generated for local testing.",
+            message:
+              "Email service is not configured. Reset link generated for local testing.",
             debugResetLink: resetLink,
           });
         }
 
         return res.status(503).json({
           success: false,
-          error: "Email service is not configured. Please configure SMTP to send password reset links.",
+          error:
+            "Email service is not configured. Please configure SMTP to send password reset links.",
         });
       }
     }
@@ -263,7 +262,9 @@ router.get("/validate-reset-token/:token", async (req, res) => {
   try {
     const { token } = req.params;
     if (!token) {
-      return res.status(400).json({ success: false, valid: false, error: "Token is required." });
+      return res
+        .status(400)
+        .json({ success: false, valid: false, error: "Token is required." });
     }
 
     await connectDB();
@@ -292,18 +293,28 @@ router.post("/reset-password", async (req, res) => {
   try {
     const { token, password, confirmPassword } = req.body || {};
     if (!token) {
-      return res.status(400).json({ success: false, error: "Reset token is required." });
+      return res
+        .status(400)
+        .json({ success: false, error: "Reset token is required." });
     }
     if (!password || !confirmPassword) {
-      return res.status(400).json({ success: false, error: "New password and confirmation are required." });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "New password and confirmation are required.",
+        });
     }
     if (password !== confirmPassword) {
-      return res.status(400).json({ success: false, error: "Passwords do not match." });
+      return res
+        .status(400)
+        .json({ success: false, error: "Passwords do not match." });
     }
     if (!isStrongPassword(String(password))) {
       return res.status(400).json({
         success: false,
-        error: "Password must be at least 8 characters, include uppercase, lowercase, number, and special character.",
+        error:
+          "Password must be at least 8 characters, include uppercase, lowercase, number, and special character.",
       });
     }
 

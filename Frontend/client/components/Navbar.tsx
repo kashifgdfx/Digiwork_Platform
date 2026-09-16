@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
+import { NotificationBell } from '@/components/NotificationBell';
 import {
   Heart,
   LayoutDashboard,
@@ -121,6 +122,9 @@ export const Navbar: React.FC = () => {
                     </span>
                   )}
                 </Link>
+
+                {/* Notifications Bell */}
+                <NotificationBell />
 
                 {/* Favorites */}
                 <Link
@@ -292,6 +296,7 @@ export const Navbar: React.FC = () => {
 
           {/* Mobile menu button */}
           <div className="flex md:hidden items-center gap-2">
+            {isLoggedIn && <NotificationBell />}
             <Link
               href="/messages"
               className="p-2 text-gray-600 hover:text-[#1dbf73] relative"

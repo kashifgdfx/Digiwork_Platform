@@ -1,0 +1,134 @@
+import { io, Socket } from 'socket.io-client';
+
+type Listener = (...args: unknown[]) => void;
+
+/**
+ * Centralized Socket.IO service.
+ * - Single shared connection
+ * - Automatic reconnection with backoff (handled by socket.io-client)
+ * - Prevents duplicate listeners across component re-renders
+ * - Network error / reconnect / disconnect lifecycle events
+ */
+class SocketService {
+  private socket: Socket | null = null;
+  private userId: string | null = null;
+  private handlers = new Map<string, Map<string, Listener>>();
+  private lifecycleBound = false;
+
+  connect(userId?: string, token?: string): Socket {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
+    if (this.socket && userId && this.userId === userId && this.socket.connected) {
+      return this.socket;
+    }
+
+    if (this.socket && userId && this.userId !== userId) {
+      this.disconnect();
+    }
+
+    if (!this.socket) {
+      this.socket = io(apiUrl, {
+        withCredentials: true,
+        transports: ['websocket', 'polling'],
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        auth: token ? { token } : undefined,
+      });
+
+      this.bindLifecycle();
+      // Re-attach any queued listeners after (re)creation.
+      this.handlers.forEach((eventHandlers, event) => {
+        eventHandlers.forEach((handler, key) => {
+          this.socket?.off(event, handler);
+          this.socket?.on(event, handler);
+        });
+      });
+    } else if (token) {
+      this.socket.auth = { token };
+    }
+
+    this.userId = userId || this.userId;
+    return this.socket;
+  }
+
+  private bindLifecycle() {
+    if (!this.socket || this.lifecycleBound) return;
+    this.lifecycleBound = true;
+
+    this.socket.on('connect', () => {
+      if (this.userId) {
+        this.socket?.emit('join-user');
+        this.socket?.emit('user-online', { userId: this.userId });
+      }
+    });
+
+    this.socket.on('disconnect', (reason: string) => {
+      if (reason === 'io server disconnect') {
+        // Server forced the disconnect – attempt manual reconnect.
+        this.socket?.connect();
+      }
+    });
+
+    this.socket.on('connect_error', () => {
+      // socket.io-client will retry automatically.
+    });
+
+    this.socket.io.on('reconnect', () => {
+      if (this.userId) this.socket?.emit('join-user');
+    });
+  }
+
+  disconnect() {
+    this.socket?.removeAllListeners();
+    this.socket?.disconnect();
+    this.socket = null;
+    this.userId = null;
+    this.handlers.clear();
+    this.lifecycleBound = false;
+  }
+
+  getSocket(): Socket | null {
+    return this.socket;
+  }
+
+  emit(event: string, payload?: unknown) {
+    if (!this.socket) return;
+    this.socket.emit(event, payload);
+  }
+
+  /**
+   * Register a listener that is de-duplicated by key. Calling `on` twice with
+   * the same key replaces the previous handler instead of stacking duplicates.
+   */
+  on(event: string, handler: Listener, key?: string): void {
+    const listenerKey = key || event;
+    if (!this.handlers.has(event)) this.handlers.set(event, new Map());
+    const eventHandlers = this.handlers.get(event)!;
+
+    const existing = eventHandlers.get(listenerKey);
+    if (existing && this.socket) {
+      this.socket.off(event, existing);
+    }
+
+    eventHandlers.set(listenerKey, handler);
+    this.socket?.on(event, handler);
+  }
+
+  off(event: string, key?: string): void {
+    const eventHandlers = this.handlers.get(event);
+    if (!eventHandlers) return;
+    const listenerKey = key || event;
+    const handler = eventHandlers.get(listenerKey);
+    if (handler) {
+      this.socket?.off(event, handler);
+      eventHandlers.delete(listenerKey);
+    }
+  }
+}
+
+export const socketService = new SocketService();
+export const getSocket = (userId?: string, token?: string) => socketService.connect(userId, token);

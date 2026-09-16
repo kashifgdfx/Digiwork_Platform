@@ -5,6 +5,7 @@ const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const User = require('../models/User');
 const connectDB = require('../db');
+const { createNotification } = require('../utils/notify');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'tumhara_super_secret_key_yahan_hoga';
 const activeUsers = new Map();
@@ -215,6 +216,17 @@ function registerSocketServer(server, options = {}) {
         io.to(`user:${receiverId}`).emit('new_message', eventPayload);
         io.to(`user:${userId}`).emit('message_sent', { message: payload, conversation: updatedConversation });
         socket.emit('message_sent', { message: payload, conversation: updatedConversation });
+
+        io.to(`user:${receiverId}`).emit('unread:update', { conversationId, unreadCount: updatedConversation?.[unreadField] || 0 });
+
+        createNotification({
+          userId: receiverId,
+          type: 'message',
+          title: `New message from ${socket.user.name}`,
+          message: message.text,
+          link: `/messages?conversationId=${encodeURIComponent(conversationId)}`,
+          meta: { conversationId, senderId: userId },
+        }).catch(() => undefined);
       } catch (error) {
         console.error('Socket send-message error:', error);
         socket.emit('message:error', { message: 'Unable to send message' });

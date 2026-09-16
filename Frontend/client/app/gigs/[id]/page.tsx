@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { ReviewList } from '@/components/ReviewList';
 import { CheckoutModal } from '@/components/CheckoutModal';
+import { GigViewTracker } from '@/components/GigViewTracker';
 import { StarRating } from '@/components/StarRating';
 import { GigCard } from '@/components/GigCard';
 import {
@@ -97,6 +98,9 @@ export default function GigDetailPage({ params }: PageProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Fire-and-forget gig view tracking (deduped server-side for 30 min) */}
+      <GigViewTracker gigId={gig.id} sellerId={gig.seller.id} />
+
       {/* Breadcrumb Navigation */}
       <nav className="flex items-center gap-2 text-xs text-gray-500 mb-6">
         <Link href="/" className="hover:text-[#1dbf73] transition-colors">Home</Link>

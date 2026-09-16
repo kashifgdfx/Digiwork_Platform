@@ -58,6 +58,10 @@ app.use('/api/orders', require('../routes/orderRoutes'));
 app.use('/api/reviews', require('../routes/reviewRoutes'));
 app.use('/api/conversations', require('../routes/conversations'));
 app.use('/api/messages', require('../routes/messages'));
+app.use('/api/notifications', require('../routes/notificationRoutes'));
+app.use('/api/gig-view', require('../routes/gigViewRoutes'));
+app.use('/api/analytics', require('../routes/analyticsRoutes'));
+app.use('/api/work', require('../routes/workRoutes'));
 app.use('/api/seed', require('../routes/seedRoutes'));
 
 app.use((req, res) => {

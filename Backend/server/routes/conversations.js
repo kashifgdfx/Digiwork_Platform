@@ -46,14 +46,20 @@ router.get('/:userId', async (req, res) => {
               country: '',
             };
 
-        return {
-          ...conversation,
-          participant,
-          participantId: participant.id,
-          participantName: participant.name,
-          buyerId: conversation.buyerId,
-          sellerId: conversation.sellerId,
-        };
+     const unreadCount =
+  conversation.buyerId === userId
+    ? (conversation.unreadCountBuyer || 0)
+    : (conversation.unreadCountSeller || 0);
+
+return {
+  ...conversation,
+  participant,
+  participantId: participant.id,
+  participantName: participant.name,
+  buyerId: conversation.buyerId,
+  sellerId: conversation.sellerId,
+  unreadCount,
+};
       })
     );
 

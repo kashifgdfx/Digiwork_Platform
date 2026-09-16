@@ -62,6 +62,14 @@ interface AppContextType {
   messagingError: string | null;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  typingUsers: Record<string, string[]>;
+  notifyTyping: (conversationId: string, receiverId: string, isTyping: boolean) => void;
+  refreshNotifications: () => Promise<void>;
+  markNotificationAsRead: (notificationId: string) => void;
+  clearNotifications: () => void;
+  unreadNotificationsCount: number;
+  userPresence: Record<string, { online: boolean; lastSeen: string | null }>;
+  updateOrderFromRealtime: (order: Order) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -164,6 +172,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [messagingLoading, setMessagingLoading] = useState(false);
   const [messagingError, setMessagingError] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
+  const [userPresence, setUserPresence] = useState<Record<string, { online: boolean; lastSeen: string | null }>>({});
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
 
@@ -328,6 +338,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     socket?.emit('mark_read', { conversationId });
   };
 
+  const refreshNotifications = async () => {
+    try {
+      const response = await apiFetch('/api/notifications');
+      if (!response.ok) return;
+      const data = await response.json();
+      const list: NotificationItem[] = (data.notifications || []).map((item: any) => ({
+        id: item.id,
+        type: item.type,
+        title: item.title,
+        message: item.message,
+        link: item.link,
+        meta: item.meta,
+        createdAt: item.createdAt,
+        read: item.read,
+        isRead: item.read,
+        timestamp: item.createdAt,
+      }));
+      setNotifications(list);
+      setUnreadNotificationsCount(
+        typeof data.unreadCount === 'number' ? data.unreadCount : list.filter((n) => !n.read).length
+      );
+    } catch {
+      // Bell simply stays as-is on network error.
+    }
+  };
+
+  const markNotificationAsRead = (notificationId: string) => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === notificationId ? { ...item, read: true, isRead: true } : item))
+    );
+    setUnreadNotificationsCount((prev) => Math.max(0, prev - 1));
+    apiFetch(`/api/notifications/${encodeURIComponent(notificationId)}/read`, { method: 'PATCH' }).catch(
+      () => undefined
+    );
+  };
+
+  const clearNotifications = () => {
+    setUnreadNotificationsCount(0);
+    setNotifications((prev) => prev.map((item) => ({ ...item, read: true, isRead: true })));
+    apiFetch('/api/notifications/read-all', { method: 'PATCH' }).catch(() => undefined);
+  };
+
+  const notifyTyping = (conversationId: string, receiverId: string, isTyping: boolean) => {
+    const socket = socketService.getSocket();
+    if (!socket) return;
+    socket.emit(isTyping ? 'typing:start' : 'typing:stop', { conversationId, receiverId });
+  };
+
+  const updateOrderFromRealtime = (order: Order) => {
+    if (!order?.id) return;
+    setOrders((prev) => {
+      const exists = prev.some((item) => item.id === order.id);
+      if (exists) return prev.map((item) => (item.id === order.id ? { ...item, ...order } : item));
+      return [order, ...prev];
+    });
+  };
+
   const updateCurrentUser = (user: User) => setCurrentUser(normalizeUser(user));
 
   const requestProfile = async (path: string, init?: RequestInit): Promise<User> => {
@@ -376,7 +443,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     socket.emit('join-user');
     socket.emit('join', currentUser.id);
 
-    const handleNewMessage = (payload: any) => {
+    const handleNewMessage = (rawPayload: any) => {
+      const payload = rawPayload?.message
+        ? { ...rawPayload.message, conversationId: rawPayload.message.conversationId || rawPayload.conversation?.id }
+        : rawPayload;
       const conversationId = payload.conversationId;
       const senderIsCurrentUser = payload.senderId === currentUser.id;
       const message: Message = {
@@ -457,7 +527,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    const handleMessageSent = (payload: any) => {
+    const handleMessageSent = (rawPayload: any) => {
+      const payload = rawPayload?.message
+        ? { ...rawPayload.message, conversationId: rawPayload.message.conversationId || rawPayload.conversation?.id }
+        : rawPayload;
       const conversationId = payload.conversationId;
       const message: Message = {
         id: payload.id || `msg-${Date.now()}`,
@@ -514,8 +587,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    const handlePresenceUpdate = ({ userId, online }: { userId: string; online: boolean }) => {
+    const handlePresenceUpdate = ({ userId, online, lastSeen }: { userId: string; online: boolean; lastSeen?: string | null }) => {
       if (!userId || userId === currentUser.id) return;
+      setUserPresence((prev) => ({
+        ...prev,
+        [userId]: { online, lastSeen: lastSeen || (online ? null : new Date().toISOString()) },
+      }));
       setConversations((prev) => prev.map((conversation) => {
         if (conversation.participant?.id === userId) {
           return {
@@ -530,6 +607,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     };
 
+    const handleOrderEvent = (payload: { order?: Order }) => {
+      if (payload?.order) updateOrderFromRealtime(payload.order);
+    };
+
+    const handleNotification = (payload: any) => {
+      if (!payload) return;
+      setNotifications((prev) => [{
+        id: payload.id || `notif-${Date.now()}`,
+        type: payload.type || 'order',
+        title: payload.title,
+        message: payload.message,
+        link: payload.link,
+        meta: payload.meta,
+        createdAt: payload.createdAt || new Date().toISOString(),
+        read: false,
+        isRead: false,
+        timestamp: payload.createdAt || new Date().toISOString(),
+      }, ...prev]);
+      setUnreadNotificationsCount((prev) => prev + 1);
+    };
+
+    const handleMessageDelivered = ({ conversationId, messageId, deliveredAt }: { conversationId: string; messageId?: string; deliveredAt?: string }) => {
+      setMessages((prev) => {
+        const list = prev[conversationId];
+        if (!list) return prev;
+        return {
+          ...prev,
+          [conversationId]: list.map((item) =>
+            item.senderId === currentUser.id && (!messageId || item.id === messageId)
+              ? { ...item, status: 'delivered' as const, deliveredAt: deliveredAt || new Date().toISOString() }
+              : item
+          ),
+        };
+      });
+    };
+
     socket.on('new_message', handleNewMessage);
     socket.on('receive-message', handleNewMessage);
     socket.on('message_sent', handleMessageSent);
@@ -540,6 +653,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     socket.on('typing:start', handleTypingStart);
     socket.on('typing:stop', handleTypingStop);
     socket.on('message:seen', handleMessagesRead);
+    socket.on('message:delivered', handleMessageDelivered);
+    socket.on('order-created', handleOrderEvent);
+    socket.on('order-progress', handleOrderEvent);
+    socket.on('order-delivered', handleOrderEvent);
+    socket.on('order-completed', handleOrderEvent);
+    socket.on('order:update', handleOrderEvent);
+    socket.on('notification', handleNotification);
+    refreshNotifications();
 
     conversations.forEach((conversation) => {
       socket.emit('join-conversation', { conversationId: conversation.id });
@@ -560,6 +681,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       socket.off('typing:start', handleTypingStart);
       socket.off('typing:stop', handleTypingStop);
       socket.off('message:seen', handleMessagesRead);
+      socket.off('message:delivered', handleMessageDelivered);
+      socket.off('order-created', handleOrderEvent);
+      socket.off('order-progress', handleOrderEvent);
+      socket.off('order-delivered', handleOrderEvent);
+      socket.off('order-completed', handleOrderEvent);
+      socket.off('order:update', handleOrderEvent);
+      socket.off('notification', handleNotification);
     };
   }, [currentUser?.id, unreadMessagesCount]);
 
@@ -969,6 +1097,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         startConversationWithSeller,
         searchQuery,
         setSearchQuery,
+        typingUsers,
+        notifyTyping,
+        refreshNotifications,
+        markNotificationAsRead,
+        clearNotifications,
+        unreadNotificationsCount,
+        userPresence,
+        updateOrderFromRealtime,
       }}
     >
       {children}
