@@ -271,9 +271,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const response = await apiFetch(`/api/conversations/${encodeURIComponent(userId)}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Unable to load conversations');
-      setConversations(
-        (data.conversations || []).map((conversation: Conversation) => normalizeConversation(conversation))
+
+      const normalized = (data.conversations || []).map((conversation: Conversation) =>
+        normalizeConversation(conversation)
       );
+      setConversations(normalized);
+
+      // Task 2: Seed userPresence immediately from whatever isOnline value
+      // the REST response already carries — gives instant UI before socket responds.
+      setUserPresence((prev) => {
+        const next = { ...prev };
+        for (const conv of normalized) {
+          const pid = conv.participant?.id;
+          if (pid && pid !== userId) {
+            const apiOnline = (conv.participant as any)?.isOnline;
+            if (typeof apiOnline === 'boolean' && !next[pid]) {
+              next[pid] = { online: apiOnline, lastSeen: null };
+            }
+          }
+        }
+        return next;
+      });
+
+      // Task 3: Ask the socket for live presence for every participant.
+      // The existing handlePresenceSnapshot listener will handle the response
+      // and overwrite the seeded values with real-time data (Task 4).
+      const participantIds = normalized
+        .map((conv: Conversation) => conv.participant?.id)
+        .filter((pid: string | undefined): pid is string => Boolean(pid) && pid !== userId);
+
+      if (participantIds.length > 0) {
+        const liveSocket = socketService.getSocket();
+        if (liveSocket?.connected) {
+          liveSocket.emit('presence:get', { userIds: participantIds });
+        } else {
+          // Socket may still be connecting — wait for it then fire.
+          liveSocket?.once('connect', () => {
+            liveSocket.emit('presence:get', { userIds: participantIds });
+          });
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to load conversations';
       setMessagingError(message);
@@ -515,17 +552,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (!senderIsCurrentUser) {
         setUnreadMessagesCount((prev) => prev + 1);
-        setNotifications((prev) => [{
-          id: payload.id || `notif-${Date.now()}`,
-          type: 'message',
-          conversationId,
-          senderId: payload.senderId,
-          senderName: payload.senderName || 'User',
-          senderAvatar: payload.senderAvatar || '',
-          text: payload.text,
-          timestamp: new Date(payload.timestamp || payload.sentAt || Date.now()).toISOString(),
-          isRead: false,
-        }, ...prev]);
+        // Do NOT push a local notification here — the backend already persists one
+        // via createNotification() and pushes it through the 'notification' socket
+        // event → handleNotification. Adding one here too causes a duplicate entry
+        // in the bell during the same session.
         playIncomingMessageSound();
         triggerBrowserNotification(
           payload.senderName || 'User',
@@ -641,7 +671,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const handleOrderEvent = (payload: { order?: Order }) => {
-      if (payload?.order) updateOrderFromRealtime(payload.order);
+      if (!payload?.order) return;
+      updateOrderFromRealtime(payload.order);
+      // The 'notification' socket event (fired by createNotification on the backend)
+      // handles the bell badge. Here we fire a browser notification so the user
+      // gets an OS-level alert when the tab is in the background.
+      const order = payload.order;
+      const isMyOrder = order.buyerId === currentUser.id || order.sellerId === currentUser.id;
+      if (!isMyOrder) return;
+      const statusLabels: Record<string, { title: string; body: string }> = {
+        'in_progress': { title: 'Order in progress', body: `"${order.gigTitle}" is now being worked on.` },
+        'revision':    { title: 'Revision requested', body: `A revision was requested for "${order.gigTitle}".` },
+        'delivered':   { title: 'Order delivered', body: `"${order.gigTitle}" has been delivered!` },
+        'completed':   { title: 'Order completed', body: `"${order.gigTitle}" is complete. Funds released.` },
+        'cancelled':   { title: 'Order cancelled', body: `"${order.gigTitle}" was cancelled.` },
+      };
+      const label = statusLabels[order.status];
+      if (label && typeof window !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(label.title, { body: label.body, icon: '/images/default-avatar.png' });
+      }
     };
 
     const handleNotification = (payload: any) => {
@@ -695,6 +743,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     socket.on('order-completed', handleOrderEvent);
     socket.on('order:update', handleOrderEvent);
     socket.on('notification', handleNotification);
+    // Also listen for the alias the backend emits from notify.js
+    socket.on('notification:new', handleNotification);
+    // When the socket reconnects after a drop, refresh notifications from the
+    // REST API so any events missed during the disconnect are caught.
+    socket.on('connect', refreshNotifications);
+    // Real-time gig listing update when any seller publishes a new gig.
+    socket.on('gig:new', ({ gig }: { gig: any }) => {
+      if (gig) setGigs((prev) => {
+        if (prev.some((g) => g.id === gig.id)) return prev;
+        return [gig, ...prev];
+      });
+    });
     refreshNotifications();
 
     conversations.forEach((conversation) => {
@@ -725,6 +785,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       socket.off('order-completed', handleOrderEvent);
       socket.off('order:update', handleOrderEvent);
       socket.off('notification', handleNotification);
+      socket.off('notification:new', handleNotification);
+      socket.off('connect', refreshNotifications);
+      socket.off('gig:new');
     };
   }, [currentUser?.id]);
 

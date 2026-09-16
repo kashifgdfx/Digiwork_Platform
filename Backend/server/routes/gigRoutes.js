@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const Gig = require("../models/Gig");
 const User = require("../models/User");
 const connectDB = require("../db");
+const { getIO } = require("../socket");
+const { createNotification } = require("../utils/notify");
 
 const secret = () => process.env.JWT_SECRET || "tumhara_super_secret_key_yahan_hoga";
 
@@ -90,8 +92,27 @@ router.post("/", async (req, res) => {
         },
       ],
     });
-    
-    res.status(201).json({ success: true, gig: await withSeller(gig.toObject()) });
+
+    const gigObject = gig.toObject();
+    const gigWithSeller = await withSeller(gigObject);
+
+    // Notify the seller in real-time so their bell lights up immediately.
+    await createNotification({
+      userId: loggedInUser.id,
+      type: "gig",
+      title: "Gig published",
+      message: `Your gig "${gig.title}" is now live and visible to buyers.`,
+      link: `/gigs/${gig.id}`,
+      meta: { gigId: gig.id },
+    });
+
+    // Broadcast to all connected clients so gig listings update in real-time.
+    const io = getIO();
+    if (io) {
+      io.emit("gig:new", { gig: gigWithSeller });
+    }
+
+    res.status(201).json({ success: true, gig: gigWithSeller });
   } catch (error) {
     res
       .status(500)

@@ -382,9 +382,14 @@ export const Navbar: React.FC = () => {
             <Link
               href="/dashboard/buyer"
               onClick={() => setMobileMenuOpen(false)}
-              className="block py-2 text-sm font-medium text-gray-700 hover:text-[#1dbf73]"
+              className="flex items-center justify-between py-2 text-sm font-medium text-gray-700 hover:text-[#1dbf73]"
             >
-              Buyer Dashboard & Orders ({orders.length})
+              <span>Buyer Dashboard & Orders</span>
+              {activeOrdersCount > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 text-[11px] font-bold bg-[#1dbf73] text-white rounded-full">
+                  {activeOrdersCount}
+                </span>
+              )}
             </Link>
 
             <Link

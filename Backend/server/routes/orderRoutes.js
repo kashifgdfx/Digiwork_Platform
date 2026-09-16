@@ -105,6 +105,52 @@ router.patch("/:id", async (req, res) => {
     const event = STATUS_EVENT[order.status] || "order-progress";
     broadcastOrder(event, serialized);
 
+    if (order.status === "in_progress") {
+      await createNotification({
+        userId: order.buyerId,
+        type: "order",
+        title: "Order in progress",
+        message: `"${order.gigTitle}" is now being worked on by the seller.`,
+        link: "/dashboard/buyer",
+        meta: { orderId: order.id },
+      });
+    }
+
+    if (order.status === "revision") {
+      await createNotification({
+        userId: order.sellerId,
+        type: "order",
+        title: "Revision requested",
+        message: `The buyer requested a revision for "${order.gigTitle}".`,
+        link: "/dashboard/seller",
+        meta: { orderId: order.id },
+      });
+    }
+
+    if (order.status === "cancelled") {
+      // Notify both parties
+      if (order.sellerId) {
+        await createNotification({
+          userId: order.sellerId,
+          type: "order",
+          title: "Order cancelled",
+          message: `"${order.gigTitle}" has been cancelled.`,
+          link: "/dashboard/seller",
+          meta: { orderId: order.id },
+        });
+      }
+      if (order.buyerId) {
+        await createNotification({
+          userId: order.buyerId,
+          type: "order",
+          title: "Order cancelled",
+          message: `Your order for "${order.gigTitle}" has been cancelled.`,
+          link: "/dashboard/buyer",
+          meta: { orderId: order.id },
+        });
+      }
+    }
+
     if (order.status === "delivered") {
       await createNotification({
         userId: order.buyerId,

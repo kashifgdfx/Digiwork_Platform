@@ -202,7 +202,7 @@ function registerSocketServer(server, options = {}) {
             $set: {
               status: deliveredStatus,
               deliveredAt,
-              isRead: Boolean(receiverSocketId ? false : false),
+              isRead: false, // receiver hasn't seen it yet
             },
           }
         );
@@ -316,6 +316,17 @@ function registerSocketServer(server, options = {}) {
       } catch (error) {
         console.error('Socket message:seen error:', error);
       }
+    });
+
+    // Client can request live online status for a list of userIds
+    socket.on('presence:get', ({ userIds }) => {
+      if (!Array.isArray(userIds)) return;
+      const response = userIds.map((uid) => ({
+        userId: uid,
+        online: Boolean(activeUsers.get(uid)?.size),
+        lastSeen: null,
+      }));
+      socket.emit('presence:snapshot', response);
     });
 
     socket.on('disconnect', () => {
