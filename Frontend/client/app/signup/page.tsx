@@ -3,57 +3,85 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
+import { useApp } from '@/context/AppContext';
+import { useToast } from '@/context/ToastContext';
 import { PasswordInput } from '@/components/PasswordInput';
 import { PasswordStrengthMeter, calculatePasswordStrength } from '@/components/PasswordStrengthMeter';
 import { PasswordRequirements } from '@/components/PasswordRequirements';
 
 export default function SignupPage() {
   const router = useRouter();
+  const { refreshCurrentUser } = useApp();
+  const { error: toastError, success: toastSuccess } = useToast();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const strength = useMemo(() => calculatePasswordStrength(password), [password]);
   const passwordsMatch = Boolean(password && confirmPassword && password === confirmPassword);
-  const isFormValid = strength.valid && passwordsMatch && name && username && email;
+  const isFormValid = strength.valid && passwordsMatch && name.trim() && username.trim() && email.trim();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
 
+    // Client-side guards (button should already be disabled, but double-check)
     if (!strength.valid) {
-      setError('Password does not meet the required strength rules.');
+      toastError('Password does not meet the required strength rules.');
       return;
     }
-
     if (!passwordsMatch) {
-      setError('Passwords do not match.');
+      toastError('Passwords do not match.');
       return;
     }
 
     setLoading(true);
+    console.log('[Signup] Submitting to POST /api/auth/signup …');
 
     try {
-      const res = await apiFetch('/api/auth/signup', {
+      // Step 1: Create the account
+      const signupRes = await apiFetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, username, email, password }),
+        body: JSON.stringify({ name: name.trim(), username: username.trim(), email: email.trim(), password }),
       });
 
-      const data = await res.json();
+      const signupData = await signupRes.json();
+      console.log('[Signup] Response:', signupRes.status, signupData);
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to register');
+      if (!signupRes.ok) {
+        throw new Error(signupData.error || 'Signup failed. Please try again.');
       }
 
-      alert('Account created successfully! Please login.');
-      router.push('/login');
+      // Step 2: Auto-login immediately after account creation
+      console.log('[Signup] Account created — auto-logging in …');
+      const loginRes = await apiFetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+
+      const loginData = await loginRes.json();
+      console.log('[Signup] Auto-login response:', loginRes.status, loginData);
+
+      if (!loginRes.ok) {
+        // Account was created but auto-login failed — send to login page
+        toastSuccess('Account created! Please sign in.');
+        setTimeout(() => router.push('/login'), 1500);
+        return;
+      }
+
+      // Step 3: Load the session into context
+      const user = await refreshCurrentUser();
+      console.log('[Signup] Session loaded:', user?.id);
+
+      toastSuccess(`Welcome, ${signupData.user?.name || name}!`);
+      setTimeout(() => router.replace('/'), 800);
     } catch (err: any) {
-      setError(err.message);
+      console.error('[Signup] Error:', err);
+      toastError(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -75,12 +103,6 @@ export default function SignupPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-100">
-          {error && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
           <form className="space-y-6" onSubmit={handleSignup}>
             <div>
               <label className="block text-sm font-medium text-gray-700">Full Name</label>
@@ -148,18 +170,29 @@ export default function SignupPage() {
             />
 
             {confirmPassword && (
-              <div className={`text-sm ${passwordsMatch ? 'text-emerald-600' : 'text-red-600'}`}>
+              <div className={`text-sm font-medium ${passwordsMatch ? 'text-emerald-600' : 'text-red-600'}`}>
                 {passwordsMatch ? '✓ Passwords match' : '✗ Passwords do not match'}
               </div>
+            )}
+
+            {/* Debug hint — remove in production */}
+            {!isFormValid && (name || email || password) && (
+              <p className="text-xs text-gray-400">
+                {!strength.valid && 'Password must meet all 5 requirements. '}
+                {strength.valid && !passwordsMatch && 'Passwords must match. '}
+                {!name.trim() && 'Name required. '}
+                {!username.trim() && 'Username required. '}
+                {!email.trim() && 'Email required. '}
+              </p>
             )}
 
             <div>
               <button
                 type="submit"
                 disabled={loading || !isFormValid}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Creating account...' : 'Sign Up'}
+                {loading ? 'Creating account…' : 'Sign Up'}
               </button>
             </div>
           </form>

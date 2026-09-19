@@ -5,6 +5,7 @@ const User = require("../models/User");
 const Gig = require("../models/Gig");
 const Order = require("../models/Order");
 const Review = require("../models/Review");
+const GigView = require("../models/GigView"); // 👈 GigView model import kiya hai analytics ke liye
 const connectDB = require("../db");
 
 function sellerId(req) {
@@ -47,6 +48,7 @@ function profileSummary(user) {
     sellerMetrics: user.sellerMetrics,
   };
 }
+
 router.get("/seller", async (req, res) => {
   try {
     const id = sellerId(req);
@@ -60,20 +62,55 @@ router.get("/seller", async (req, res) => {
         : { id },
     ).lean();
 
-    const gigs = await Gig.find({ sellerId: id }).lean();
-    const orders = await Order.find({ sellerId: id })
+    const targetSellerIds = [id];
+    if (user) {
+      if (user.id) targetSellerIds.push(user.id);
+      if (user._id) targetSellerIds.push(user._id.toString());
+    }
+
+    const gigs = await Gig.find({ sellerId: { $in: targetSellerIds } }).lean();
+    const orders = await Order.find({ sellerId: { $in: targetSellerIds } })
       .sort({ createdAt: -1 })
       .lean();
-    const reviews = await Review.find({ sellerId: id }).select('rating').lean();
+      
+    const reviews = await Review.find({ sellerId: { $in: targetSellerIds } }).select('rating').lean();
+    
+    // 🛠️ Yahan hum Gig Performance ke liye Real-time Views calculate kar rahe hain!
+    const sellerGigIds = gigs.map(g => g.id || g._id.toString());
+    
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - 7);
+
+    const startOfMonth = new Date();
+    startOfMonth.setMonth(startOfMonth.getMonth() - 1);
+
+    const todayViews = sellerGigIds.length ? await GigView.countDocuments({ gigId: { $in: sellerGigIds }, viewedAt: { $gte: startOfToday } }) : 0;
+    const weekViews = sellerGigIds.length ? await GigView.countDocuments({ gigId: { $in: sellerGigIds }, viewedAt: { $gte: startOfWeek } }) : 0;
+    const monthViews = sellerGigIds.length ? await GigView.countDocuments({ gigId: { $in: sellerGigIds }, viewedAt: { $gte: startOfMonth } }) : 0;
+    
+    // Unique visitors count total
+    const uniqueVisitorsResult = sellerGigIds.length ? await GigView.distinct("visitorId", { gigId: { $in: sellerGigIds } }) : [];
+    const totalVisitors = uniqueVisitorsResult.length;
+
     const reviewStats = {
       averageRating: reviews.length ? Math.round((reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length) * 10) / 10 : 0,
       totalReviews: reviews.length,
       breakdown: [5, 4, 3, 2, 1].map((star) => ({ star, count: reviews.filter((review) => review.rating === star).length })),
     };
+
     res.json({
       success: true,
       user: profileSummary(user),
       reviewStats,
+      performance: {
+        today: todayViews,
+        week: weekViews,
+        month: monthViews,
+        visitors: totalVisitors
+      },
       gigs: gigs.map((gig) => ({
         id: gig.id || gig._id.toString(),
         title: gig.title,
@@ -97,15 +134,12 @@ router.get("/seller", async (req, res) => {
       })),
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        error: error.message || "Internal Server Error",
-      });
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal Server Error",
+    });
   }
 });
-
 
 router.patch("/seller", async (req, res) => {
   try {
@@ -148,6 +182,7 @@ router.patch("/seller", async (req, res) => {
 router.get("/seller/analytics", (_req, res) => {
   return res.redirect(307, "/api/analytics/seller");
 });
+
 router.get('/buyer', async (req, res) => {
   try {
     const id = sellerId(req);
@@ -183,4 +218,5 @@ router.get('/buyer', async (req, res) => {
     res.status(500).json({ success: false, error: error.message || 'Internal Server Error' });
   }
 });
+
 module.exports = router;

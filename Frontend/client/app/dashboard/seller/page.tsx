@@ -10,10 +10,12 @@ import { SellerRatingStats } from '@/types';
 import { AnalyticsSkeleton } from '@/components/skeletons/AnalyticsSkeleton';
 import { SellerAnalyticsPanel } from '@/components/SellerAnalyticsPanel';
 import { socketService } from '@/lib/socket';
+import { useToast } from '@/context/ToastContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import {
   CheckCircle2,
   Clock,
-  DollarSign,
+  IndianRupee,
   ExternalLink,
   Layers,
   PlusCircle,
@@ -57,9 +59,11 @@ interface Order {
 }
 
 export default function SellerDashboardPage() {
+  const { success: toastSuccess, error: toastError } = useToast();
+  const { confirm } = useConfirm();
+
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [statusUpdatedId, setStatusUpdatedId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [uploading, setUploading] = useState<boolean>(false);
 
@@ -104,13 +108,36 @@ export default function SellerDashboardPage() {
     return () => { socket?.off('reviewCreated', refreshReviews); socket?.off('reviewUpdated', refreshReviews); socket?.off('reviewDeleted', refreshReviews); };
   }, []);
 
+  // A seller can receive a new order while this page is open. Keep the queue
+  // current instead of requiring a manual page refresh.
+  useEffect(() => {
+    const socket = socketService.getSocket();
+    const applyOrder = (payload: { order?: Order }) => {
+      const order = payload?.order;
+      if (!order?.id) return;
+      setOrders((previous) => {
+        const exists = previous.some((item) => item.id === order.id);
+        return exists
+          ? previous.map((item) => (item.id === order.id ? { ...item, ...order } : item))
+          : [order, ...previous];
+      });
+    };
+
+    socket?.on('order-created', applyOrder);
+    socket?.on('order:update', applyOrder);
+    return () => {
+      socket?.off('order-created', applyOrder);
+      socket?.off('order:update', applyOrder);
+    };
+  }, []);
+
   // Handle File Selection and Upload directly from computer
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Please select a valid image file.');
+      toastError('Please select a valid image file.');
       return;
     }
 
@@ -130,9 +157,9 @@ export default function SellerDashboardPage() {
         const data = await response.json();
         if (data.success) {
           setUser((prev) => (prev ? { ...prev, avatar: data.user?.avatar } : null));
-          alert('Profile picture updated successfully!');
+          toastSuccess('Profile picture updated successfully!');
         } else {
-          alert('Failed to update avatar: ' + data.error);
+          toastError(data.error || 'Failed to update avatar.');
         }
         setUploading(false);
       };
@@ -140,7 +167,7 @@ export default function SellerDashboardPage() {
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error uploading avatar:', error);
-      alert('Something went wrong while uploading image.');
+      toastError('Something went wrong while uploading image.');
       setUploading(false);
     }
   };
@@ -169,10 +196,10 @@ export default function SellerDashboardPage() {
         setOrders((prevOrders) =>
           prevOrders.map((ord) => (ord.id === orderId ? { ...ord, status: newStatus } : ord))
         );
-        setStatusUpdatedId(orderId);
-        setTimeout(() => setStatusUpdatedId(null), 3000);
+        const label = newStatus === 'delivered' ? 'delivered' : 'completed';
+        toastSuccess(`Order #${orderId} marked as ${label} and client notified!`);
       } else {
-        alert('Error updating status: ' + data.error);
+        toastError(data.error || 'Error updating order status.');
       }
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -180,7 +207,14 @@ export default function SellerDashboardPage() {
   };
 
   const handleDeleteGig = async (gigId: string) => {
-    if (!confirm('Are you sure you want to delete this gig?')) return;
+    const confirmed = await confirm({
+      title: 'Delete Gig',
+      message: 'Are you sure you want to permanently delete this gig? This action cannot be undone.',
+      confirmLabel: 'Delete Gig',
+      cancelLabel: 'Keep Gig',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     try {
       const response = await apiFetch(`/api/gigs/${gigId}`, {
@@ -189,8 +223,9 @@ export default function SellerDashboardPage() {
       const data = await response.json();
       if (data.success) {
         setGigs((prevGigs) => prevGigs.filter((g) => g.id !== gigId));
+        toastSuccess('Gig deleted successfully.');
       } else {
-        alert('Error deleting gig: ' + data.error);
+        toastError(data.error || 'Error deleting gig.');
       }
     } catch (error) {
       console.error('Error deleting gig:', error);
@@ -268,13 +303,17 @@ export default function SellerDashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-100 text-[#1dbf73] flex items-center justify-center shrink-0">
-            <DollarSign size={22} />
+            <IndianRupee size={22} />
           </div>
-          <div>
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Net Earnings</span>
-            <span className="text-xl sm:text-2xl font-black text-gray-900">${totalEarnings.toFixed(0)}</span>
-            <span className="text-[11px] text-gray-400 block">${pendingClearance.toFixed(0)} pending</span>
-          </div>
+        <div>
+  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Net Earnings</span>
+  <span className="text-xl sm:text-2xl font-black text-gray-900">
+    ₹{totalEarnings.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+  </span>
+  <span className="text-[11px] text-gray-400 block">
+    ₹{pendingClearance.toLocaleString('en-IN', { maximumFractionDigits: 0 })} pending
+  </span>
+</div>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs flex items-center gap-4">
@@ -315,14 +354,6 @@ export default function SellerDashboardPage() {
       <SellerAnalyticsPanel />
 
       {reviewStats ? <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-xs"><div className="mb-5 flex items-end justify-between"><div><h2 className="text-lg font-bold text-gray-900">Review analytics</h2><p className="text-xs text-gray-500">Ratings from completed orders</p></div><div className="text-right"><p className="text-2xl font-black text-gray-900">{reviewStats.averageRating.toFixed(1)} <span className="text-amber-400">★</span></p><p className="text-xs text-gray-500">{reviewStats.totalReviews} total reviews</p></div></div><div className="space-y-2">{reviewStats.breakdown.map(({ star, count }) => <div key={star} className="flex items-center gap-3 text-xs"><span className="w-10 font-semibold text-gray-600">{star} star</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-amber-400" style={{ width: `${reviewStats.totalReviews ? (count / reviewStats.totalReviews) * 100 : 0}%` }} /></div><span className="w-8 text-right font-semibold text-gray-600">{count}</span></div>)}</div></section> : <AnalyticsSkeleton />}
-
-      {/* Status Updated Toast Notification */}
-      {statusUpdatedId && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-3 text-xs font-medium">
-          <CheckCircle2 size={18} className="text-[#1dbf73]" />
-          <span>Order #{statusUpdatedId} successfully updated and client notified!</span>
-        </div>
-      )}
 
       {/* Section 1: Incoming Client Orders Queue */}
       <section className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">

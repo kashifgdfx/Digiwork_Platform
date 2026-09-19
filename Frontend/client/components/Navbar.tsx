@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import { NotificationBell } from '@/components/NotificationBell';
 import {
   Heart,
@@ -35,7 +36,7 @@ export const Navbar: React.FC = () => {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-
+const { confirm } = useConfirm();
   const activeUser = currentUser;
 
   const isLoggedIn = !!currentUser;
@@ -261,11 +262,21 @@ export const Navbar: React.FC = () => {
       </div>
 
       <button
-        onClick={async () => {
-          await logout();
-          setUserMenuOpen(false);
-          router.replace('/');
-        }}
+       onClick={async () => {
+  const confirmed = await confirm({
+    title: 'Log out?',
+    message: 'Are you sure you want to log out of your account?',
+    confirmLabel: 'Log Out',
+    cancelLabel: 'Cancel',
+    variant: 'danger',
+  });
+
+  if (!confirmed) return;
+
+  await logout();
+  setUserMenuOpen(false);
+  router.replace('/');
+}}
         className="w-full text-left px-4 pt-2 text-sm text-gray-600 hover:text-red-600"
       >
         Log out
@@ -412,11 +423,21 @@ export const Navbar: React.FC = () => {
             <Link href="/settings/profile" onClick={() => setMobileMenuOpen(false)} className="block py-2 text-sm font-medium text-gray-700 hover:text-[#1dbf73]">Settings</Link>
 
             <button
-              onClick={async () => {
-                await logout();
-                setMobileMenuOpen(false);
-                router.replace('/');
-              }}
+             onClick={async () => {
+  const confirmed = await confirm({
+    title: 'Log out?',
+    message: 'Are you sure you want to log out of your account?',
+    confirmLabel: 'Log Out',
+    cancelLabel: 'Cancel',
+    variant: 'danger',
+  });
+
+  if (!confirmed) return;
+
+  await logout();
+  setMobileMenuOpen(false);
+  router.replace('/');
+}}
               className="block w-full text-left py-2 text-sm font-medium text-red-600"
             >
               Log out

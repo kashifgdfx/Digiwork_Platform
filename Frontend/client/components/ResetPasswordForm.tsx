@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+import { useToast } from '@/context/ToastContext';
 import { PasswordInput } from '@/components/PasswordInput';
 import { PasswordRequirements } from '@/components/PasswordRequirements';
 import { PasswordStrengthMeter, calculatePasswordStrength } from '@/components/PasswordStrengthMeter';
@@ -16,8 +17,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-  const [success, setSuccess] = useState('');
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const strength = useMemo(() => calculatePasswordStrength(password), [password]);
   const isMatch = Boolean(password && confirmPassword && password === confirmPassword);
@@ -25,32 +25,26 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitError('');
-    setSuccess('');
 
     if (!token) {
-      setSubmitError('Reset token is missing.');
+      toastError('Reset token is missing.');
       return;
     }
 
     if (!strength.valid) {
-      setSubmitError('Password does not meet the required strength rules.');
+      toastError('Password does not meet the required strength rules.');
       return;
     }
 
     if (!isMatch) {
-      setSubmitError('Passwords do not match.');
+      toastError('Passwords do not match.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const payload: ResetPasswordPayload = {
-        token,
-        password,
-        confirmPassword,
-      };
+      const payload: ResetPasswordPayload = { token, password, confirmPassword };
 
       const response = await apiFetch('/api/auth/reset-password', {
         method: 'POST',
@@ -63,11 +57,11 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         throw new Error(data.error || 'Unable to update password.');
       }
 
-      setSuccess(data.message || 'Password updated successfully.');
+      toastSuccess(data.message || 'Password updated successfully.', 'Password reset');
       setPassword('');
       setConfirmPassword('');
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Unable to reset password.');
+      toastError(error instanceof Error ? error.message : 'Unable to reset password.');
     } finally {
       setLoading(false);
     }
@@ -100,19 +94,6 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           </div>
         )}
       </div>
-
-      {submitError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {submitError}
-        </div>
-      )}
-
-      {success && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          <CheckCircle2 size={16} />
-          {success}
-        </div>
-      )}
 
       <button
         type="submit"

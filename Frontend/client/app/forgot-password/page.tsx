@@ -2,20 +2,18 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Mail, ShieldCheck } from 'lucide-react';
+import { Loader2, Mail } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+import { useToast } from '@/context/ToastContext';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
-    setError('');
-    setSuccess('');
 
     try {
       const response = await apiFetch('/api/auth/forgot-password', {
@@ -29,10 +27,10 @@ export default function ForgotPasswordPage() {
         throw new Error(data.error || 'Unable to send reset link.');
       }
 
-      setSuccess('Password reset link has been sent to your email.');
+      toastSuccess('Password reset link has been sent to your email.', 'Check your inbox');
       setEmail('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to send reset link.');
+      toastError(err instanceof Error ? err.message : 'Unable to send reset link.');
     } finally {
       setLoading(false);
     }
@@ -51,19 +49,6 @@ export default function ForgotPasswordPage() {
               Enter your email and we&apos;ll send you a reset link.
             </p>
           </div>
-
-          {success && (
-            <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              <ShieldCheck size={16} />
-              {success}
-            </div>
-          )}
-
-          {error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>

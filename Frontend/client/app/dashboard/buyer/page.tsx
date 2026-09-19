@@ -7,6 +7,7 @@ import { OrderStatusBadge } from '@/components/OrderStatusBadge';
 import { BuyerDashboardSkeleton } from '@/components/skeletons/BuyerDashboardSkeleton';
 import { apiFetch } from '@/lib/api';
 import { ReviewModal } from '@/components/ReviewModal';
+import { useToast } from '@/context/ToastContext';
 import {
   Calendar,
   CheckCircle2,
@@ -48,11 +49,11 @@ interface BuyerProfile {
 
 export default function BuyerDashboardPage() {
   const router = useRouter();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [user, setUser] = useState<BuyerProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
-  const [justCompletedId, setJustCompletedId] = useState<string | null>(null);
   const [reviewedOrderIds, setReviewedOrderIds] = useState<Set<string>>(new Set());
   const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
 
@@ -114,10 +115,9 @@ export default function BuyerDashboardPage() {
             ord.id === orderId ? { ...ord, status: 'completed', progressPercent: 100 } : ord
           )
         );
-        setJustCompletedId(orderId);
-        setTimeout(() => setJustCompletedId(null), 3000);
+        toastSuccess(`Order #${orderId} marked as completed! Payment released to the seller.`);
       } else {
-        alert('Error updating order status: ' + data.error);
+        toastError(data.error || 'Error updating order status.');
       }
     } catch (error) {
       console.error('Error completing order:', error);
@@ -238,14 +238,6 @@ export default function BuyerDashboardPage() {
           </button>
         ))}
       </div>
-
-      {/* Just Completed Alert Banner */}
-      {justCompletedId && (
-        <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-3 text-xs font-medium">
-          <CheckCircle2 size={18} className="text-[#1dbf73]" />
-          <span>Order #{justCompletedId} marked as completed! Payment has been safely released to the seller.</span>
-        </div>
-      )}
 
       {/* Orders List */}
       {filteredOrders.length > 0 ? (

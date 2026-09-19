@@ -1,14 +1,17 @@
 'use client';
 
 import React, { use, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
+import { useToast } from '@/context/ToastContext';
 import { ReviewList } from '@/components/ReviewList';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { GigViewTracker } from '@/components/GigViewTracker';
 import { StarRating } from '@/components/StarRating';
 import { GigCard } from '@/components/GigCard';
+import { ActivityTracker } from '@/components/ActivityTracker';
 import {
   ArrowLeft,
   Check,
@@ -31,12 +34,14 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export default function GigDetailPage({ params }: PageProps) {
+export default function GigDetailPage({ params }: PageProps ) {
+  
   const resolvedParams = use(params);
   const gigId = resolvedParams.id;
   const router = useRouter();
 
   const { gigs, isFavorite, toggleFavorite, startConversationWithSeller, currentUser } = useApp();
+  const { error: toastError } = useToast();
   const gig = gigs.find((g) => g.id === gigId);
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -44,8 +49,10 @@ export default function GigDetailPage({ params }: PageProps) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [contactError, setContactError] = useState<string | null>(null);
   const [isContacting, setIsContacting] = useState(false);
+
+  // Fixed: using gigId directly since resolvedParams already unwrapped it
+  const id = gigId;
 
   if (!gig) {
     return (
@@ -76,13 +83,12 @@ export default function GigDetailPage({ params }: PageProps) {
     .slice(0, 4);
 
   const handleContactSeller = async () => {
-    setContactError(null);
     setIsContacting(true);
     try {
       const convId = await startConversationWithSeller(gig.seller, gig);
       router.push(`/messages?conversationId=${encodeURIComponent(convId)}`);
     } catch (error) {
-      setContactError(error instanceof Error ? error.message : 'Unable to start conversation');
+      toastError(error instanceof Error ? error.message : 'Unable to start conversation');
     } finally {
       setIsContacting(false);
     }
@@ -99,6 +105,7 @@ export default function GigDetailPage({ params }: PageProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Fire-and-forget gig view tracking (deduped server-side for 30 min) */}
+      <ActivityTracker gigId={id} />
       <GigViewTracker gigId={gig.id} sellerId={gig.seller.id} />
 
       {/* Breadcrumb Navigation */}
@@ -290,12 +297,6 @@ export default function GigDetailPage({ params }: PageProps) {
                   <span>{isContacting ? 'Opening...' : 'Contact Seller'}</span>
                 </button>
               </div>
-
-              {contactError && (
-                <p className="mt-3 text-xs text-red-600" role="alert">
-                  {contactError}
-                </p>
-              )}
 
               {/* Seller Metadata Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-5 border-b border-gray-100 text-xs">
@@ -493,52 +494,51 @@ export default function GigDetailPage({ params }: PageProps) {
                       : 'Unlimited Revisions'}
                   </span>
                 </div>
-              </div>
+            </div>
 
-              {/* Features Checklist */}
-              <div className="space-y-2.5 text-xs text-gray-600">
-                <p className="font-bold text-gray-700 text-[11px] uppercase tracking-wider">
-                  What&apos;s Included
-                </p>
-                {selectedPackage.features.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    {f.included ? (
-                      <Check size={15} className="text-[#1dbf73] shrink-0" />
-                    ) : (
-                      <CrossIcon size={15} className="text-gray-300 shrink-0" />
-                    )}
-                    <span className={f.included ? 'text-gray-800' : 'text-gray-400'}>
-                      {f.name}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            {/* Features Checklist */}
+            <div className="space-y-2.5 text-xs text-gray-600">
+              <p className="font-bold text-gray-700 text-[11px] uppercase tracking-wider">
+                What&apos;s Included
+              </p>
+              {selectedPackage.features.map((f, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  {f.included ? (
+                    <Check size={15} className="text-[#1dbf73] shrink-0" />
+                  ) : (
+                    <CrossIcon size={15} className="text-gray-300 shrink-0" />
+                  )}
+                  <span className={f.included ? 'text-gray-800' : 'text-gray-400'}>
+                    {f.name}
+                  </span>
+                </div>
+              ))}
+            </div>
 
-              {/* Action Buttons */}
-              <div className="space-y-3 pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => setIsCheckoutOpen(true)}
-                  className="w-full py-3.5 bg-[#1dbf73] hover:bg-[#19a463] text-white font-bold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={16} />
-                  <span>Continue (${selectedPackage.price})</span>
-                </button>
+            {/* Action Buttons */}
+            <div className="space-y-3 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => setIsCheckoutOpen(true)}
+                className="w-full py-3.5 bg-[#1dbf73] hover:bg-[#19a463] text-white font-bold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+              >
+                <Sparkles size={16} />
+                <span>Continue (${selectedPackage.price})</span>
+              </button>
 
-                <button
-                  onClick={handleContactSeller}
-                  disabled={isOwnGig || isContacting}
-                  className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <MessageSquare size={14} />
-                  <span>{isContacting ? 'Opening...' : `Contact Seller (${gig.seller.name})`}</span>
-                </button>
-              </div>
+              <button
+                onClick={handleContactSeller}
+                disabled={isOwnGig || isContacting}
+                className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+              >
+                <MessageSquare size={14} />
+                <span>{isContacting ? 'Opening...' : `Contact Seller (${gig.seller.name})`}</span>
+              </button>
+            </div>
 
-              {/* Escrow Guarantee */}
-              <div className="flex items-center justify-center gap-2 text-[11px] text-gray-400 pt-2">
-                <ShieldCheck size={14} className="text-[#1dbf73]" />
-                <span>Simulated Escrow Protection</span>
-              </div>
+            {/* Escrow Guarantee */}
+            <div className="flex items-center justify-center gap-2 text-[11px] text-gray-400 pt-2">
+              <ShieldCheck size={14} className="text-[#1dbf73]" />
+              <span>Simulated Escrow Protection</span>
             </div>
           </div>
         </div>
@@ -574,6 +574,7 @@ export default function GigDetailPage({ params }: PageProps) {
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
       />
+      </div>
     </div>
   );
 }

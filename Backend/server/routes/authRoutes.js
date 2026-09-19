@@ -49,7 +49,8 @@ const publicUser = (user) => ({
   username: user.username,
   email: user.email,
   avatar: user.avatar,
-  level: user.level,
+  // Single authoritative level — prefer sellerMetrics.level, fall back to top-level field
+  level: user.sellerMetrics?.level || user.level || "New Seller",
   rating: user.rating,
   reviewCount: user.reviewCount,
   country: user.country,
@@ -70,7 +71,6 @@ const publicUser = (user) => ({
   socialLinks: user.socialLinks,
   sellerMetrics: user.sellerMetrics,
   profileCompletion: user.profileCompletion,
-  level: user.level || user.sellerMetrics?.level || "New Seller",
 });
 
 const authenticatedUser = async (req) => {
@@ -120,6 +120,24 @@ router.post("/signup", async (req, res) => {
       bio: bio || "",
       memberSince: String(new Date().getFullYear()),
     });
+
+    console.log(`[Signup] User created: ${user.email} | id: ${user.id} | db: FiverData.users`);
+
+    // Issue a JWT cookie immediately so the frontend can be auto-logged in
+    // without requiring a separate POST /login call.
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, username: user.username, name: user.name },
+      secret(),
+      { expiresIn: "7d" }
+    );
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: isProduction(),
+      sameSite: isProduction() ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
     res.status(201).json({
       success: true,
       message: "User registered successfully!",

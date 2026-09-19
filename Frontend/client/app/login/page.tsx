@@ -4,19 +4,19 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { useApp } from '@/context/AppContext';
+import { useToast } from '@/context/ToastContext';
 import { PasswordInput } from '@/components/PasswordInput';
 
 export default function LoginPage() {
   const router = useRouter();
   const { refreshCurrentUser } = useApp();
+  const { error: toastError } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
@@ -37,9 +37,9 @@ export default function LoginPage() {
         throw new Error('Login succeeded, but the user session could not be loaded.');
       }
 
-      router.replace('/dashboard/seller');
+      router.replace('/');
     } catch (err: any) {
-      setError(err.message);
+      toastError(err.message);
     } finally {
       setLoading(false);
     }
@@ -61,12 +61,6 @@ export default function LoginPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-100">
-          {error && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
               <label className="block text-sm font-medium text-gray-700">Email Address</label>

@@ -32,6 +32,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal' | 'balance'>('card');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -39,13 +40,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const serviceFee = Math.max(3, Math.round(subtotal * 0.055 * 100) / 100);
   const total = (subtotal + serviceFee).toFixed(2);
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
-      const order = placeOrder(gig, packageTier.name);
+    setOrderError(null);
+    try {
+      const order = await placeOrder(gig, packageTier.name);
       setPlacedOrderId(order.id);
+    } catch (error) {
+      setOrderError(error instanceof Error ? error.message : 'Unable to place the order. Please try again.');
+    } finally {
       setIsSubmitting(false);
-    }, 900);
+    }
   };
 
   return (
@@ -245,6 +250,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <Lock size={16} />
               {isSubmitting ? 'Securing Transaction...' : `Confirm & Pay $${total}`}
             </button>
+
+            {orderError && (
+              <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700" role="alert">
+                {orderError}
+              </p>
+            )}
 
             <p className="text-center text-[11px] text-gray-400 mt-3 flex items-center justify-center gap-1">
               <Lock size={11} /> 256-bit encrypted simulated transaction

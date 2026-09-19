@@ -72,6 +72,8 @@ export interface SellerAnalyticsResponse {
     totalGigs: number;
     totalOrders: number;
     conversionRate: number;
+    totalMouseMoves?: number;
+    totalKeyPresses?: number;
   };
   sellerPerformance: {
     totalOrders: number;
@@ -104,6 +106,46 @@ export function fetchSellerAnalytics(): Promise<SellerAnalyticsResponse> {
   return jsonRequest<SellerAnalyticsResponse>("/api/analytics/seller", { method: "GET" });
 }
 
+export type AnalyticsRange = 'today' | 'yesterday' | '7d' | '30d' | '90d' | 'month' | 'custom';
+
+export interface SellerAnalyticsHistoryPoint {
+  date: string;
+  revenue: number;
+  orders: number;
+  completedOrders: number;
+  pendingOrders: number;
+  views: number;
+  visitors: number;
+  mouseMoves: number;
+  keyPresses: number;
+  clicks: number;
+  hours: number;
+  sessions: number;
+  messages: number;
+  unreadMessages: number;
+  rating: number;
+}
+
+export interface SellerAnalyticsHistoryResponse {
+  success: boolean;
+  range: { range: AnalyticsRange; start: string; end: string };
+  history: SellerAnalyticsHistoryPoint[];
+  funnel: { visitors: number; views: number; clicks: number; messages: number; orders: number };
+  live: { activeVisitors: number };
+}
+
+export function fetchSellerAnalyticsHistory(
+  range: AnalyticsRange,
+  customRange?: { start: string; end: string },
+): Promise<SellerAnalyticsHistoryResponse> {
+  const params = new URLSearchParams({ range });
+  if (range === 'custom' && customRange?.start && customRange.end) {
+    params.set('start', customRange.start);
+    params.set('end', customRange.end);
+  }
+  return jsonRequest<SellerAnalyticsHistoryResponse>(`/api/analytics/seller/history?${params}`, { method: 'GET' });
+}
+
 export interface GigAnalyticsResponse {
   success: boolean;
   gigAnalytics: Pick<
@@ -128,4 +170,24 @@ export function stopWorkSession(orderId: string): Promise<unknown> {
 
 export function fetchWorkSummary(): Promise<unknown> {
   return jsonRequest("/api/work/summary", { method: "GET" });
+}
+export interface CreateOrderPayload {
+  gigId: string;
+  sellerId: string;
+  buyerId?: string;
+  buyerName?: string;
+  gigTitle?: string;
+  gigImage?: string;
+  packageTier?: string;
+  price?: number;
+  deliveryDate?: string;
+  sellerAvatar?: string;
+  sellerName?: string;
+}
+
+export function createOrder(payload: CreateOrderPayload): Promise<any> {
+  return jsonRequest("/api/orders", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }

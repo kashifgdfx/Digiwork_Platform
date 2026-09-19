@@ -57,13 +57,13 @@ function GigsContent() {
         return false;
       }
 
-      // Search term
+// Search term
       if (searchTerm) {
         const query = searchTerm.toLowerCase();
-        const matchesTitle = gig.title.toLowerCase().includes(query);
-        const matchesCat = gig.category.toLowerCase().includes(query);
-        const matchesTag = gig.tags.some((t) => t.toLowerCase().includes(query));
-        const matchesSeller = gig.seller.name.toLowerCase().includes(query);
+        const matchesTitle = gig.title?.toLowerCase().includes(query) || false;
+        const matchesCat = gig.category?.toLowerCase().includes(query) || false;
+        const matchesTag = gig.tags?.some((t) => t?.toLowerCase().includes(query)) || false;
+        const matchesSeller = gig.seller?.name?.toLowerCase().includes(query) || false;
         if (!matchesTitle && !matchesCat && !matchesTag && !matchesSeller) {
           return false;
         }

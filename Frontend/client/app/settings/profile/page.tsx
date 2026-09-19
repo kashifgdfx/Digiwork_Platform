@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { apiFetch } from '@/lib/api';
+import { useToast } from '@/context/ToastContext';
 import { Education, Experience, Certification, PortfolioItem } from '@/types';
 import { ProfileSkeleton } from '@/components/skeletons/ProfileSkeleton';
 
@@ -21,9 +22,8 @@ function languageLabel(value: unknown) {
 
 export default function ProfileSettingsPage() {
   const { currentUser, updateProfile, addProfileItem, updateProfileItem, deleteProfileItem, uploadAvatar } = useApp();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [tab, setTab] = useState<Tab>('Personal Information');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [fields, setFields] = useState<FieldMap>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -34,8 +34,8 @@ export default function ProfileSettingsPage() {
   const openAvatarPicker = () => avatarInputRef.current?.click();
   const setField = (key: string, value: string) => setFields((previous) => ({ ...previous, [key]: value }));
   const resetForm = () => { setFields({}); setEditingId(null); };
-  const feedback = (text: string) => { setMessage(text); setError(''); setTimeout(() => setMessage(''), 3000); };
-  const fail = (text: string) => { setError(text); setMessage(''); };
+  const feedback = (text: string) => toastSuccess(text);
+  const fail = (text: string) => toastError(text);
 
   const saveBasic = async (event: FormEvent) => {
     event.preventDefault();
@@ -147,7 +147,6 @@ export default function ProfileSettingsPage() {
     <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
       <aside className="h-fit rounded-xl border border-gray-200 bg-white p-3 shadow-sm"><div className="mb-4 flex items-center gap-3 border-b border-gray-100 p-2 pb-4"><button type="button" onClick={openAvatarPicker} className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-full ring-2 ring-emerald-100 transition hover:ring-emerald-300"><img src={currentUser.avatar || '/images/default-avatar.png'} alt={currentUser.name} className="h-full w-full object-cover" /><span className="absolute inset-0 flex items-center justify-center bg-black/30 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">Edit</span></button><div className="min-w-0"><p className="truncate font-semibold text-gray-900">{currentUser.name}</p><p className="text-xs text-gray-500">{currentUser.profileCompletion?.percentage || 0}% complete</p></div></div>{tabs.map((item) => <button key={item} onClick={() => { setTab(item); resetForm(); }} className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-sm ${tab === item ? 'bg-emerald-50 font-semibold text-[#168f58]' : 'text-gray-600 hover:bg-gray-50'}`}>{item}</button>)}</aside>
       <section>
-        {message && <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}{error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {tab === 'Personal Information' && <form onSubmit={saveBasic} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"><div className="mb-6 flex flex-wrap items-center justify-between gap-4"><div><h2 className="text-xl font-bold">Personal information</h2><p className="text-sm text-gray-500">How clients identify and contact you.</p></div><button type="button" onClick={openAvatarPicker} className="cursor-pointer rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold">Change photo</button></div><div className="mb-6 flex justify-center"><button type="button" onClick={openAvatarPicker} className="group relative h-24 w-24 overflow-hidden rounded-full border-4 border-emerald-100 bg-white shadow-sm transition hover:border-emerald-200"><img src={currentUser.avatar || '/images/default-avatar.png'} alt={currentUser.name} className="h-full w-full object-cover" /><span className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold text-white opacity-0 transition group-hover:opacity-100">Edit</span></button></div><div className="grid gap-4 sm:grid-cols-2">{[['name', 'Full name'], ['username', 'Username'], ['phone', 'Phone'], ['country', 'Country'], ['state', 'State'], ['city', 'City'], ['timezone', 'Timezone']].map(([key, label]) => <label key={key}><span className="mb-1.5 block text-sm font-medium text-gray-700">{label}</span><input className={inputClass} value={fields[key] ?? String(currentUser[key as keyof typeof currentUser] || '')} onChange={(event) => setField(key, event.target.value)} required={key === 'name' || key === 'username'} /></label>)}</div><button disabled={saving} className="mt-6 rounded-lg bg-[#1dbf73] px-5 py-2.5 text-sm font-semibold text-white">Save changes</button></form>}
         {tab === 'Professional Information' && <form onSubmit={saveProfessional} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">Professional information</h2><div className="mt-5 space-y-4"><label><span className="mb-1.5 block text-sm font-medium text-gray-700">Professional headline</span><input className={inputClass} value={fields.headline ?? (currentUser.headline || '')} onChange={(event) => setField('headline', event.target.value)} /></label><label><span className="mb-1.5 block text-sm font-medium text-gray-700">Bio</span><textarea className={`${inputClass} min-h-40`} value={fields.bio ?? (currentUser.bio || '')} onChange={(event) => setField('bio', event.target.value)} /></label></div><button disabled={saving} className="mt-6 rounded-lg bg-[#1dbf73] px-5 py-2.5 text-sm font-semibold text-white">Save changes</button></form>}
         {tab === 'Skills' && <div className="space-y-5"><form onSubmit={(event) => { event.preventDefault(); void addProfileItem('skills', { skill: fields.skill }).then(() => { setField('skill', ''); feedback('Skill added.'); }).catch((err: unknown) => fail(err instanceof Error ? err.message : 'Unable to add skill.')); }} className="flex gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><input className={inputClass} placeholder="Add a skill" value={fields.skill || ''} onChange={(event) => setField('skill', event.target.value)} /><button className="rounded-lg bg-[#1dbf73] px-4 py-2 text-sm font-semibold text-white">Add</button></form><div className="flex flex-wrap gap-2">{(currentUser.skills || []).map((skill) => <span key={skill} className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{skill}<button type="button" onClick={() => void deleteProfileItem('skills', skill).then(() => feedback('Skill removed.')).catch((err: unknown) => fail(err instanceof Error ? err.message : 'Unable to remove skill.'))}>×</button></span>)}</div></div>}

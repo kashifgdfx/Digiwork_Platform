@@ -80,13 +80,8 @@ useEffect(() => {
   // 2. Real-time incoming message listen karo
   const handleNewMessage = (data: any) => {
     if (data?.message && data.message.conversationId === selectedConvId) {
-      // Yahan check karo ki agar aapke AppContext ya local state mein add karne ka function hai
-      // Ya phir aap directly messages state update kar sakte ho.
-      // Agar aapka AppContext handle karta hai, toh ensure karo ki naya message state mein push ho.
-      console.log("New live message received:", data.message);
-      
-      // Note: Agar AppContext ke through messages update hote hain, toh AppContext me bhi 
-      // socket.on('new_message') listener hona chahiye taaki baaki pages par bhi notification/count update ho.
+    
+    
     }
   };
 

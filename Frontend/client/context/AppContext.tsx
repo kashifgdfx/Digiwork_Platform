@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   Conversation,
   Gig,
@@ -50,7 +50,7 @@ interface AppContextType {
   isFavorite: (gigId: string) => boolean;
   addGig: (gigData: Partial<Gig>) => Gig;
   deleteGig: (gigId: string) => void;
-  placeOrder: (gig: Gig, packageTier: 'Basic' | 'Standard' | 'Premium') => Order;
+  placeOrder: (gig: Gig, packageTier: 'Basic' | 'Standard' | 'Premium') => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   conversations: Conversation[];
   messages: Record<string, Message[]>;
@@ -178,6 +178,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
+  // The server emits two compatibility event names for the same notification.
+  // Keep a small in-memory record so it is rendered and sounded only once.
+  const processedRealtimeNotificationIds = useRef<Set<string>>(new Set());
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+  const notificationAudioUnlockedRef = useRef(false);
+  const pendingNotificationSoundRef = useRef(false);
 
   const refreshCurrentUser = async (): Promise<User | null> => {
     setProfileLoading(true);
@@ -201,17 +207,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const playIncomingMessageSound = () => {
-    if (typeof window === 'undefined') return;
+  const playNotificationSound = () => {
+    const audio = notificationAudioRef.current;
+    if (!audio) return;
 
-    try {
-      const audio = new Audio('/sounds/message.mp3');
-      audio.volume = 0.4;
-      audio.play().catch(() => undefined);
-    } catch {
-      // Ignore audio errors in unsupported browsers.
+    if (!notificationAudioUnlockedRef.current) {
+      pendingNotificationSoundRef.current = true;
+      return;
     }
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.play().catch((err) => {
+      console.error('Notification sound failed:', err);
+    });
   };
+
+  // Preload one audio instance and unlock it after the first user interaction.
+  useEffect(() => {
+    const audio = new Audio('/beep.wav');
+    audio.preload = 'auto';
+    audio.volume = 0.4;
+    notificationAudioRef.current = audio;
+
+    const unlockAudio = () => {
+      if (notificationAudioUnlockedRef.current) return;
+      audio.currentTime = 0;
+      audio.muted = true;
+
+audio.play()
+  .then(() => {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.muted = false;
+
+    notificationAudioUnlockedRef.current = true;
+
+    console.log("🔊 Notification audio unlocked");
+
+    if (pendingNotificationSoundRef.current) {
+      pendingNotificationSoundRef.current = false;
+      playNotificationSound();
+    }
+  })
+        .catch((err) => {
+          console.error('Notification sound failed:', err);
+        });
+    };
+
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+    window.addEventListener('touchstart', unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+      audio.pause();
+      notificationAudioRef.current = null;
+      notificationAudioUnlockedRef.current = false;
+    };
+  }, []);
 
   const triggerBrowserNotification = (senderName: string, senderAvatar: string, text: string, conversationId: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -478,6 +533,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!currentUser) return;
 
+    processedRealtimeNotificationIds.current.clear();
+
     const socket = socketService.connect(currentUser.id);
     socket.emit('join-user');
     socket.emit('join', currentUser.id);
@@ -556,7 +613,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // via createNotification() and pushes it through the 'notification' socket
         // event → handleNotification. Adding one here too causes a duplicate entry
         // in the bell during the same session.
-        playIncomingMessageSound();
         triggerBrowserNotification(
           payload.senderName || 'User',
           payload.senderAvatar || '/images/default-avatar.png',
@@ -694,8 +750,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const handleNotification = (payload: any) => {
       if (!payload) return;
+      const notificationId = payload.id || `notif-${Date.now()}`;
+      if (processedRealtimeNotificationIds.current.has(notificationId)) return;
+      processedRealtimeNotificationIds.current.add(notificationId);
+
+      playNotificationSound();
       setNotifications((prev) => [{
-        id: payload.id || `notif-${Date.now()}`,
+        id: notificationId,
         type: payload.type || 'order',
         title: payload.title,
         message: payload.message,
@@ -951,7 +1012,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       method: 'DELETE',
     }).catch((err) => console.warn('Failed to delete gig from MongoDB:', err));
   };
-  const placeOrder = (gig: Gig, packageTier: 'Basic' | 'Standard' | 'Premium'): Order => {
+  const placeOrder = async (gig: Gig, packageTier: 'Basic' | 'Standard' | 'Premium'): Promise<Order> => {
     if (!currentUser) throw new Error('You must be logged in to place an order.');
 
     const pkg = gig.packages[packageTier.toLowerCase() as keyof typeof gig.packages];
@@ -977,17 +1038,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       progressPercent: 15,
     };
 
-    // Optimistic UI update
-    setOrders((prev) => [newOrder, ...prev]);
-
-    // Async persistence to MongoDB API
-    apiFetch('/api/orders', {
+    // Persist before reporting a successful checkout. Previously any HTTP 500
+    // still displayed a successful order because only network failures were caught.
+    const response = await apiFetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newOrder),
-    }).catch((err) => console.warn('Failed to persist order to MongoDB:', err));
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.order) {
+      throw new Error(data.error || 'Unable to place the order. Please try again.');
+    }
 
-    return newOrder;
+    const savedOrder = data.order as Order;
+    setOrders((prev) => [savedOrder, ...prev.filter((order) => order.id !== savedOrder.id)]);
+    return savedOrder;
   };
 
   const updateOrderStatus = (orderId: string, status: OrderStatus) => {

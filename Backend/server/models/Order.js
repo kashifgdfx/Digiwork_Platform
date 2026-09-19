@@ -18,11 +18,12 @@ OrderSchema.statics.progressForStatus = function progressForStatus(status) {
   }
 };
 
-OrderSchema.pre('save', function syncProgress(next) {
+// Mongoose 9 middleware is promise-based and does not pass a `next` callback.
+// Calling `next()` here made every Order.create() fail with "next is not a function".
+OrderSchema.pre('save', function syncProgress() {
   if (this.isModified('status')) {
     this.progressPercent = OrderSchema.statics.progressForStatus(this.status);
   }
-  next();
 });
 
 module.exports = mongoose.models.Order || mongoose.model('Order', OrderSchema);
