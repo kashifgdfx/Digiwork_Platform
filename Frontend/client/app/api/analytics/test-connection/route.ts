@@ -9,7 +9,8 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       message: 'MongoDB connection successful',
-      database: mongoose.connection.db.databaseName,
+      // Optional chaining aur fallback lagaya hai taaki TypeScript error na de
+      database: mongoose.connection.db?.databaseName || 'unknown',
       readyState: mongoose.connection.readyState,
       host: mongoose.connection.host,
     });
