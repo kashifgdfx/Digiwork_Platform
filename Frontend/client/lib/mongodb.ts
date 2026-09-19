@@ -35,12 +35,14 @@ async function dbConnect(): Promise<typeof mongoose> {
     console.log('🔌 Connecting to MongoDB...');
     console.log('DB:', opts.dbName);
 
+    // Yahan MONGODB_URI ke sath '!' lagaya hai taaki TS error na de
     cached.promise = mongoose
-      .connect(MONGODB_URI, opts)
-      .then((mongoose) => {
+      .connect(MONGODB_URI!, opts)
+      .then((mongooseInstance) => {
         console.log('✅ MongoDB connected successfully');
-        console.log('📦 Database:', mongoose.connection.db.databaseName);
-        return mongoose;
+        // Yahan optional chaining '?.' ka use kiya hai
+        console.log('📦 Database:', mongooseInstance.connection.db?.databaseName);
+        return mongooseInstance;
       })
       .catch((error) => {
         console.error('❌ MongoDB connection failed:', error.message);
