@@ -70,6 +70,8 @@ const publicUser = (user) => ({
   portfolio: user.portfolio,
   socialLinks: user.socialLinks,
   sellerMetrics: user.sellerMetrics,
+  role: user.role,
+  accountStatus: user.accountStatus,
   profileCompletion: user.profileCompletion,
 });
 
@@ -119,6 +121,7 @@ router.post("/signup", async (req, res) => {
       country: country || "United States",
       bio: bio || "",
       memberSince: String(new Date().getFullYear()),
+      role: 'buyer',
     });
 
     console.log(`[Signup] User created: ${user.email} | id: ${user.id} | db: FiverData.users`);
@@ -141,12 +144,7 @@ router.post("/signup", async (req, res) => {
     res.status(201).json({
       success: true,
       message: "User registered successfully!",
-      user: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-      },
+      user: publicUser(user),
     });
   } catch (error) {
     console.error("Signup error:", error);
@@ -170,6 +168,8 @@ router.post("/login", async (req, res) => {
       return res
         .status(401)
         .json({ success: false, error: "Invalid email or password" });
+    if (user.accountStatus && user.accountStatus !== 'active')
+      return res.status(403).json({ success: false, error: 'This account is not active. Please contact support.' });
     const userData = {
       userId: user.id,
       email: user.email,

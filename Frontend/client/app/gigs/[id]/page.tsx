@@ -494,51 +494,52 @@ export default function GigDetailPage({ params }: PageProps ) {
                       : 'Unlimited Revisions'}
                   </span>
                 </div>
-            </div>
+              </div>
 
-            {/* Features Checklist */}
-            <div className="space-y-2.5 text-xs text-gray-600">
-              <p className="font-bold text-gray-700 text-[11px] uppercase tracking-wider">
-                What&apos;s Included
-              </p>
-              {selectedPackage.features.map((f, i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  {f.included ? (
-                    <Check size={15} className="text-[#1dbf73] shrink-0" />
-                  ) : (
-                    <CrossIcon size={15} className="text-gray-300 shrink-0" />
-                  )}
-                  <span className={f.included ? 'text-gray-800' : 'text-gray-400'}>
-                    {f.name}
-                  </span>
-                </div>
-              ))}
-            </div>
+              {/* Features Checklist */}
+              <div className="space-y-2.5 text-xs text-gray-600">
+                <p className="font-bold text-gray-700 text-[11px] uppercase tracking-wider">
+                  What&apos;s Included
+                </p>
+                {selectedPackage.features.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2.5">
+                    {f.included ? (
+                      <Check size={15} className="text-[#1dbf73] shrink-0" />
+                    ) : (
+                      <CrossIcon size={15} className="text-gray-300 shrink-0" />
+                    )}
+                    <span className={f.included ? 'text-gray-800' : 'text-gray-400'}>
+                      {f.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-3 pt-4 border-t border-gray-100">
-              <button
-                onClick={() => setIsCheckoutOpen(true)}
-                className="w-full py-3.5 bg-[#1dbf73] hover:bg-[#19a463] text-white font-bold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-              >
-                <Sparkles size={16} />
-                <span>Continue (${selectedPackage.price})</span>
-              </button>
+              {/* Action Buttons */}
+              <div className="space-y-3 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => setIsCheckoutOpen(true)}
+                  className="w-full py-3.5 bg-[#1dbf73] hover:bg-[#19a463] text-white font-bold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                >
+                  <Sparkles size={16} />
+                  <span>Continue (${selectedPackage.price})</span>
+                </button>
 
-              <button
-                onClick={handleContactSeller}
-                disabled={isOwnGig || isContacting}
-                className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
-              >
-                <MessageSquare size={14} />
-                <span>{isContacting ? 'Opening...' : `Contact Seller (${gig.seller.name})`}</span>
-              </button>
-            </div>
+                <button
+                  onClick={handleContactSeller}
+                  disabled={isOwnGig || isContacting}
+                  className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <MessageSquare size={14} />
+                  <span>{isContacting ? 'Opening...' : `Contact Seller (${gig.seller.name})`}</span>
+                </button>
+              </div>
 
-            {/* Escrow Guarantee */}
-            <div className="flex items-center justify-center gap-2 text-[11px] text-gray-400 pt-2">
-              <ShieldCheck size={14} className="text-[#1dbf73]" />
-              <span>Simulated Escrow Protection</span>
+              {/* Escrow Guarantee */}
+              <div className="flex items-center justify-center gap-2 text-[11px] text-gray-400 pt-2">
+                <ShieldCheck size={14} className="text-[#1dbf73]" />
+                <span>Simulated Escrow Protection</span>
+              </div>
             </div>
           </div>
         </div>
@@ -559,9 +560,11 @@ export default function GigDetailPage({ params }: PageProps ) {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
             {relatedGigs.map((rel) => (
-              <GigCard key={rel.id} gig={rel} />
+              <div key={rel.id} className="h-full flex flex-col">
+                <GigCard gig={rel} />
+              </div>
             ))}
           </div>
         </section>
@@ -574,7 +577,6 @@ export default function GigDetailPage({ params }: PageProps ) {
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
       />
-      </div>
     </div>
   );
 }

@@ -43,6 +43,8 @@ const GigSchema = new mongoose.Schema(
     ordersInQueue: { type: Number, default: 0 },
     faqs: { type: [Object], default: [] },
     isFeatured: { type: Boolean, default: false },
+    moderationStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', index: true },
+    moderationNote: { type: String, trim: true, maxlength: 1000, default: '' },
   },
   { timestamps: true },
 );

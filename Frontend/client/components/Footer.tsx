@@ -88,7 +88,7 @@ export const Footer: React.FC = () => {
               <span>English</span>
             </div>
             <div className="flex items-center gap-1 cursor-pointer hover:text-gray-900">
-              <span>USD ($)</span>
+            <span>INR (₹)</span>
             </div>
             <div className="flex items-center gap-1 text-gray-400">
               <span>Crafted with</span>

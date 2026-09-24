@@ -60,6 +60,10 @@ const UserSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
   username: { type: String, required: true, unique: true },
+  // A user may buy and sell, but the role is also the server-side permission
+  // boundary for administrative operations. Never accept this field from signup.
+  role: { type: String, enum: ['buyer', 'seller', 'admin'], default: 'buyer', index: true },
+  accountStatus: { type: String, enum: ['active', 'declined', 'suspended'], default: 'active', index: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   phone: { type: String, trim: true, maxlength: 40, default: '' },
@@ -90,6 +94,8 @@ const UserSchema = new mongoose.Schema({
   resetPasswordToken: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },
 }, { timestamps: true });
+
+
 
 UserSchema.index({ username: 1 }, { unique: true });
 

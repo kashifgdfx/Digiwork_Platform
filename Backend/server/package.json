@@ -7,7 +7,8 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "build": "node --check server.js",
-    "migrate:gigs": "node scripts/migrateGigsToSellerId.js"
+    "migrate:gigs": "node scripts/migrateGigsToSellerId.js",
+    "migrate:roles": "node scripts/migrateUserRoles.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

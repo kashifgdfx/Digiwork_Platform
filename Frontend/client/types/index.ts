@@ -27,6 +27,9 @@ export interface User {
   socialLinks?: SocialLinks;
   sellerMetrics?: SellerMetrics;
   profileCompletion?: { percentage: number };
+  /** Present for authenticated users; optional for legacy/mock public seller cards. */
+  role?: UserRole;
+  accountStatus?: 'active' | 'declined' | 'suspended';
 }
 
 export interface Language {
@@ -282,4 +285,4 @@ export interface Category {
   image: string;
 }
 
-export type UserRole = 'buyer' | 'seller';
+export type UserRole = 'buyer' | 'seller' | 'admin';

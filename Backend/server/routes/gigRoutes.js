@@ -29,18 +29,20 @@ async function withSeller(gig) {
 router.get("/", async (req, res) => {
   try {
     await connectDB();
-    const filter = {};
+    // Legacy gigs without a moderationStatus remain visible; newly submitted
+    // gigs must be approved by an admin before appearing in the marketplace.
+    const filter = { $and: [{ $or: [{ moderationStatus: 'approved' }, { moderationStatus: { $exists: false } }] }] };
     if (req.query.category)
       filter.category = {
         $regex: `^${req.query.category.trim()}$`,
         $options: "i",
       };
     if (req.query.search)
-      filter.$or = [
+      filter.$and.push({ $or: [
         { title: { $regex: req.query.search.trim(), $options: "i" } },
         { description: { $regex: req.query.search.trim(), $options: "i" } },
         { tags: { $in: [new RegExp(req.query.search.trim(), "i")] } },
-      ];
+      ] });
     if (req.query.minPrice || req.query.maxPrice) {
       filter.startingPrice = {};
       if (req.query.minPrice)
@@ -68,12 +70,19 @@ router.get("/", async (req, res) => {
   }
 });
 
+
 router.post("/", async (req, res) => {
   try {
     await connectDB();
     const body = req.body;
     const loggedInUser = await authenticatedUser(req);
     if (!loggedInUser) return res.status(401).json({ success: false, error: "Authentication required" });
+    // Publishing a first gig opts a buyer into the seller role. Admin is never
+    // assignable through public endpoints; it is only set by an administrator.
+    if (loggedInUser.role === 'buyer') {
+      await User.updateOne({ id: loggedInUser.id }, { $set: { role: 'seller' } });
+      loggedInUser.role = 'seller';
+    }
     const { seller, sellerId, ...gigData } = body;
     if (!gigData.title || !gigData.description || !gigData.category || !gigData.subcategory || !gigData.startingPrice) {
       return res.status(400).json({ success: false, error: "Title, description, category, subcategory, and starting price are required" });
@@ -91,6 +100,7 @@ router.post("/", async (req, res) => {
           answer: "All deliverables specified in the selected package tiers.",
         },
       ],
+      moderationStatus: 'pending',
     });
 
     const gigObject = gig.toObject();
@@ -101,7 +111,7 @@ router.post("/", async (req, res) => {
       userId: loggedInUser.id,
       type: "gig",
       title: "Gig published",
-      message: `Your gig "${gig.title}" is now live and visible to buyers.`,
+      message: `Your gig "${gig.title}" was submitted for admin review.`,
       link: `/gigs/${gig.id}`,
       meta: { gigId: gig.id },
     });
@@ -126,9 +136,32 @@ router.get("/:id", async (req, res) => {
     const gig = await Gig.findOne({ id: req.params.id }).lean();
     if (!gig)
       return res.status(404).json({ success: false, error: "Gig not found" });
+    const viewer = await authenticatedUser(req);
+    const visible = !gig.moderationStatus || gig.moderationStatus === 'approved';
+    if (!visible && viewer?.id !== gig.sellerId && viewer?.role !== 'admin') {
+      return res.status(404).json({ success: false, error: "Gig not found" });
+    }
     res.json({ success: true, gig: await withSeller(gig) });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.patch("/:id", async (req, res) => {
+  try {
+    await connectDB();
+    const user = await authenticatedUser(req);
+    if (!user) return res.status(401).json({ success: false, error: "Authentication required" });
+    const { id, _id, sellerId, seller, ...updates } = req.body || {};
+    const gig = await Gig.findOneAndUpdate(
+      { id: req.params.id, sellerId: user.id },
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!gig) return res.status(404).json({ success: false, error: "Gig not found" });
+    res.json({ success: true, gig: await withSeller(gig) });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message || "Failed to update gig" });
   }
 });
 

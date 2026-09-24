@@ -49,6 +49,7 @@ interface AppContextType {
   toggleFavorite: (gigId: string) => void;
   isFavorite: (gigId: string) => boolean;
   addGig: (gigData: Partial<Gig>) => Gig;
+  updateGig: (gigId: string, gigData: Partial<Gig>) => void;
   deleteGig: (gigId: string) => void;
   placeOrder: (gig: Gig, packageTier: 'Basic' | 'Standard' | 'Premium') => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
@@ -109,6 +110,9 @@ function normalizeUser(user: Partial<User> & { id: string; name?: string; email?
     socialLinks: user.socialLinks || {},
     sellerMetrics: user.sellerMetrics,
     profileCompletion: user.profileCompletion || { percentage: 0 },
+    // Supports accounts created before the buyer/seller/admin migration.
+    role: user.role === 'admin' || user.role === 'seller' ? user.role : 'buyer',
+    accountStatus: user.accountStatus || 'active',
   };
 }
 
@@ -937,7 +941,7 @@ audio.play()
     if (!currentUser) throw new Error('You must be logged in to create a gig.');
 
     const newGig: Gig = {
-      id: `gig-${Date.now()}`,
+      id: gigData.id || `gig-${Date.now()}`,
       sellerId: currentUser.id,
       title: gigData.title || 'Untitled Gig',
       description: gigData.description || 'No description provided.',
@@ -1001,6 +1005,20 @@ audio.play()
     }).catch((err) => console.warn('Failed to persist gig to MongoDB:', err));
 
     return newGig;
+  };
+
+  const updateGig = (gigId: string, gigData: Partial<Gig>): void => {
+    setGigs((prev) => {
+      const exists = prev.some((gig) => gig.id === gigId);
+      return exists
+        ? prev.map((gig) => gig.id === gigId ? { ...gig, ...gigData, id: gigId } : gig)
+        : [{ ...gigData, id: gigId } as Gig, ...prev];
+    });
+    apiFetch(`/api/gigs/${encodeURIComponent(gigId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...gigData, id: gigId }),
+    }).catch((err) => console.warn('Failed to persist gig update:', err));
   };
 
   const deleteGig = (gigId: string) => {
@@ -1249,6 +1267,7 @@ audio.play()
         toggleFavorite,
         isFavorite,
         addGig,
+        updateGig,
         deleteGig,
         placeOrder,
         updateOrderStatus,
