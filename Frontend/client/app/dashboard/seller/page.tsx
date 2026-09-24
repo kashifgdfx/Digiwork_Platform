@@ -707,13 +707,26 @@ export default function SellerDashboardPage() {
         gigToEdit={selectedGigToEdit}
         onGigSaved={(savedGig) => {
           const exists = gigs.some((gig) => gig.id === savedGig.id);
-          if (exists) updateGig(savedGig.id, savedGig);
-          const persistedGig = exists ? savedGig : addGig(savedGig);
-          setGigs((prevGigs) => {
-            return exists
-              ? prevGigs.map((gig) => gig.id === savedGig.id ? persistedGig : gig)
-              : [persistedGig, ...prevGigs];
-          });
+          if (exists) {
+            updateGig(savedGig.id, savedGig);
+            setGigs((prevGigs) =>
+              prevGigs.map((gig) =>
+                gig.id === savedGig.id
+                  ? {
+                      ...gig,
+                      ...savedGig,
+                      rating: savedGig.rating ?? gig.rating,
+                      reviewCount: savedGig.reviewCount ?? gig.reviewCount,
+                      ordersInQueue: savedGig.ordersInQueue ?? gig.ordersInQueue,
+                    }
+                  : gig
+              )
+            );
+            return;
+          }
+
+          const persistedGig = addGig(savedGig) as unknown as Gig;
+          setGigs((prevGigs) => [persistedGig, ...prevGigs]);
         }}
       />
     </div>
