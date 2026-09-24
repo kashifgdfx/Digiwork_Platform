@@ -62,5 +62,7 @@ registerSocketServer(server, {
   allowedOrigins: [...allowedOrigins],
 });
 
-module.exports = app;
-module.exports.server = server;
+// Export the HTTP server so Vercel's WebSocket-capable Node runtime can handle
+// Socket.IO upgrades as well as ordinary HTTP requests.
+module.exports = server;
+module.exports.app = app;

@@ -17,10 +17,9 @@ class SocketService {
 
     this.socket = io(apiUrl, {
       withCredentials: true,
-      // Start with polling so the HTTP handshake always succeeds on Vercel/serverless,
-      // then attempt an upgrade to WebSocket. Putting 'websocket' first causes an
-      // immediate wss:// failure on serverless platforms that don't hold TCP connections.
-      transports: ['polling', 'websocket'],
+      // Vercel Functions don't support Socket.IO's long-polling transport here;
+      // connect directly to its WebSocket transport instead.
+      transports: ['websocket'],
       autoConnect: true,
       auth: token ? { token } : undefined,
     });
