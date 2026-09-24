@@ -50,6 +50,7 @@ app.use('/api/gig-view', require('../routes/gigViewRoutes'));
 app.use('/api/analytics', require('../routes/analyticsRoutes'));
 app.use('/api/work', require('../routes/workRoutes'));
 app.use('/api/seed', require('../routes/seedRoutes'));
+app.use('/api/admin', require('../routes/admin'));
 
 app.use((req, res) => {
   res.status(404).json({
