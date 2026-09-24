@@ -1,6 +1,6 @@
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.trim() ||
-  (process.env.VERCEL_ENV === "production"
+  (process.env.NODE_ENV === "production"
     ? "https://digiwork-platform-cizx.vercel.app"
     : "http://localhost:5000");
 
@@ -9,11 +9,29 @@ export function apiUrl(path: string): string {
   return `${normalizedBase}/${path.replace(/^\//, "")}`;
 }
 
+const AUTH_TOKEN_KEY = "fiverr_clone_auth_token";
+
+export function setAuthToken(token: string | null): void {
+  if (typeof window === "undefined") return;
+  if (token) window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+  else window.localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
 export async function apiFetch(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
-  return fetch(apiUrl(path), { ...init, credentials: "include" });
+  const headers = new Headers(init?.headers);
+  const token = getAuthToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(apiUrl(path), { ...init, headers, credentials: "include" });
 }
 
 async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {

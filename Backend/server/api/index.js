@@ -5,6 +5,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const connectDB = require('../db');
 const { registerSocketServer } = require('../socket');
+const { corsOptions, allowedOrigins } = require('../corsConfig');
 
 connectDB().catch((err) => {
   console.error('MongoDB Error:', err);
@@ -13,29 +14,15 @@ connectDB().catch((err) => {
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigins = new Set([
-  process.env.CLIENT_URL || 'https://digiwork-platform.vercel.app',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-]);
-
-const isLocalOrigin = (origin) =>
-  /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.has(origin) || isLocalOrigin(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error(`CORS blocked origin: ${origin}`));
-    },
-    credentials: true,
-  })
-);
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+app.use((req, _res, next) => {
+  const bearerToken = req.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (bearerToken) req.cookies.token = bearerToken;
+  next();
+});
 
 app.get('/', (_req, res) =>
   res.json({
@@ -72,12 +59,7 @@ app.use((req, res) => {
 });
 
 registerSocketServer(server, {
-  allowedOrigins: [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    process.env.CLIENT_URL || 'https://digiwork-platform.vercel.app',
-    'https://digiwork-platform.vercel.app',
-  ],
+  allowedOrigins: [...allowedOrigins],
 });
 
 module.exports = app;

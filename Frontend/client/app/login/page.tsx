@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, setAuthToken } from '@/lib/api';
 import { useApp } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import { PasswordInput } from '@/components/PasswordInput';
@@ -32,6 +32,7 @@ export default function LoginPage() {
         throw new Error(data.error || 'Invalid email or password');
       }
 
+      setAuthToken(data.token || null);
       const user = await refreshCurrentUser();
       if (!user) {
         throw new Error('Login succeeded, but the user session could not be loaded.');

@@ -14,7 +14,7 @@ import {
 import {
   mockGigs,
 } from '@/data/mockData';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getAuthToken, setAuthToken } from '@/lib/api';
 import { socketService } from '@/lib/socket';
 
 interface AppContextType {
@@ -293,6 +293,7 @@ audio.play()
     try {
       await apiFetch('/api/auth/logout', { method: 'POST' });
     } finally {
+      setAuthToken(null);
       setCurrentUser(null);
       socketService.disconnect();
     }
@@ -539,7 +540,7 @@ audio.play()
 
     processedRealtimeNotificationIds.current.clear();
 
-    const socket = socketService.connect(currentUser.id);
+    const socket = socketService.connect(currentUser.id, getAuthToken() || undefined);
     socket.emit('join-user');
     socket.emit('join', currentUser.id);
 

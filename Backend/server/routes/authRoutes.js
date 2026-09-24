@@ -76,7 +76,7 @@ const publicUser = (user) => ({
 });
 
 const authenticatedUser = async (req) => {
-  const token = req.cookies.token;
+  const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1] || req.cookies?.token;
   if (!token) return null;
 
   try {
@@ -145,6 +145,7 @@ router.post("/signup", async (req, res) => {
       success: true,
       message: "User registered successfully!",
       user: publicUser(user),
+      token,
     });
   } catch (error) {
     console.error("Signup error:", error);
@@ -190,6 +191,7 @@ router.post("/login", async (req, res) => {
       success: true,
       message: "Login successful",
       user: publicUser(user),
+      token,
     });
   } catch (error) {
     console.error("Login error:", error);
