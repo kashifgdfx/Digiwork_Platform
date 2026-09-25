@@ -165,7 +165,7 @@ export const Navbar: React.FC = () => {
                       <ShoppingBag size={18} className="shrink-0" />
                       <span className="leading-none">Orders</span>
                       {activeOrdersCount > 0 && (
-                        <span className="ml-0.5 px-1.5 py-0.5 text-[11px] font-bold bg-[#1dbf73] text-white rounded-full leading-none">
+                        <span className="relative -ml-1 -top-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold bg-[#1dbf73] text-white rounded-full leading-none shadow-sm">
                           {activeOrdersCount}
                         </span>
                       )}
