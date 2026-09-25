@@ -48,6 +48,7 @@ export const Navbar: React.FC = () => {
   const activeOrdersCount = orders.filter(
     (o) => o.status === "in_progress",
   ).length;
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -96,7 +97,7 @@ export const Navbar: React.FC = () => {
           <div className="hidden md:flex items-center gap-5 text-sm font-medium">
             <Link
               href="/gigs"
-              className="text-gray-600 hover:text-[#1dbf73] transition-colors"
+              className="flex items-center text-gray-600 hover:text-[#1dbf73] transition-colors"
             >
               Explore Gigs
             </Link>
@@ -117,7 +118,7 @@ export const Navbar: React.FC = () => {
                 {/* Messages */}
                 <Link
                   href="/messages"
-                  className="relative p-2 text-gray-600 hover:text-[#1dbf73] transition-colors rounded-full hover:bg-gray-100"
+                  className="relative p-2 text-gray-600 hover:text-[#1dbf73] transition-colors rounded-full hover:bg-gray-100 flex items-center justify-center"
                   title="Messages"
                 >
                   <MessageSquare size={20} />
@@ -134,7 +135,7 @@ export const Navbar: React.FC = () => {
                 {/* Favorites */}
                 <Link
                   href="/gigs?favorites=true"
-                  className="relative p-2 text-gray-600 hover:text-[#1dbf73] transition-colors rounded-full hover:bg-gray-100"
+                  className="relative p-2 text-gray-600 hover:text-[#1dbf73] transition-colors rounded-full hover:bg-gray-100 flex items-center justify-center"
                   title="Saved Gigs"
                 >
                   <Heart
@@ -157,38 +158,39 @@ export const Navbar: React.FC = () => {
                       ? "/dashboard/buyer"
                       : "/dashboard/seller"
                   }
-                  className="flex items-center gap-1 text-gray-600 hover:text-[#1dbf73] transition-colors relative"
+                  className="flex items-center gap-2 text-gray-600 hover:text-[#1dbf73] transition-colors relative"
                 >
                   {currentRole === "buyer" ? (
                     <>
-                      <ShoppingBag size={18} />
-                      <span>Orders</span>
+                      <ShoppingBag size={18} className="shrink-0" />
+                      <span className="leading-none">Orders</span>
                       {activeOrdersCount > 0 && (
-                        <span className="ml-1 px-1.5 py-0.5 text-[11px] font-bold bg-[#1dbf73] text-white rounded-full">
+                        <span className="ml-0.5 px-1.5 py-0.5 text-[11px] font-bold bg-[#1dbf73] text-white rounded-full leading-none">
                           {activeOrdersCount}
                         </span>
                       )}
                     </>
                   ) : (
                     <>
-                      <LayoutDashboard size={18} />
-                      <span>Seller Dashboard</span>
+                      <LayoutDashboard size={18} className="shrink-0" />
+                      <span className="leading-none">Seller Dashboard</span>
                     </>
                   )}
                 </Link>
 
-             {/* Desktop Admin Panel Link */}
-{currentUser?.role === "admin" && (
-  <Link
-    href="/admin/dashboard"
-    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#1DBF73] hover:bg-[#19a463] rounded-md border border-[#1DBF73] transition-colors whitespace-nowrap shrink-0"
-  >
-    <UserShield size={16} className="shrink-0" />
-    <span className="whitespace-nowrap">Admin Panel</span>
-  </Link>
-)}
+                {/* Desktop Admin Panel Link */}
+                {currentUser?.role === "admin" && (
+                  <Link
+                    href="/admin/dashboard"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#1DBF73] hover:bg-[#19a463] rounded-md border border-[#1DBF73] transition-colors whitespace-nowrap shrink-0"
+                  >
+                    <UserShield size={16} className="shrink-0" />
+                    <span className="whitespace-nowrap">Admin Panel</span>
+                  </Link>
+                )}
+
                 {/* User Dropdown */}
-                <div className="relative">
+                <div className="relative flex items-center">
                   <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
                     className="flex items-center gap-2 focus:outline-none"
@@ -202,7 +204,7 @@ export const Navbar: React.FC = () => {
 
                   {userMenuOpen && (
                     <div
-                      className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50"
+                      className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50 top-full"
                       onMouseLeave={() => setUserMenuOpen(false)}
                     >
                       <div className="px-4 py-3 border-b border-gray-100">
@@ -316,13 +318,13 @@ export const Navbar: React.FC = () => {
               <>
                 <Link
                   href="/login"
-                  className="text-gray-600 hover:text-[#1dbf73] transition-colors"
+                  className="flex items-center text-gray-600 hover:text-[#1dbf73] transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
                   href="/signup"
-                  className="px-4 py-2 bg-[#1dbf73] hover:bg-[#19a463] text-white rounded-md font-medium transition-colors"
+                  className="px-4 py-2 bg-[#1dbf73] hover:bg-[#19a463] text-white rounded-md font-medium transition-colors flex items-center justify-center"
                 >
                   Join
                 </Link>
@@ -335,7 +337,7 @@ export const Navbar: React.FC = () => {
             {isLoggedIn && <NotificationBell />}
             <Link
               href="/messages"
-              className="p-2 text-gray-600 hover:text-[#1dbf73] relative"
+              className="p-2 text-gray-600 hover:text-[#1dbf73] relative flex items-center justify-center"
             >
               <MessageSquare size={20} />
               {unreadMessages > 0 && (
@@ -346,7 +348,7 @@ export const Navbar: React.FC = () => {
             </Link>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-gray-600 hover:text-gray-900 focus:outline-none"
+              className="p-2 text-gray-600 hover:text-gray-900 focus:outline-none flex items-center justify-center"
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>

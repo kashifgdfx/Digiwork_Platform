@@ -100,7 +100,7 @@ export const GigCard: React.FC<GigCardProps> = ({ gig }) => {
           Starting at
         </span>
         <span className="text-base font-bold text-gray-900">
-          ${gig.startingPrice}
+         ₹ {gig.startingPrice}
         </span>
       </div>
     </div>

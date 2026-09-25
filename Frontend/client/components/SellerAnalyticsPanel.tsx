@@ -19,6 +19,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
 import {
   Activity,
   ArrowDownRight,
@@ -63,10 +64,20 @@ const fmt = (value: number) =>
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(value || 0);
-const dateLabel = (date: string) =>
-  new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(
-    new Date(`${date.slice(0, 10)}T00:00:00`),
-  );
+const dateLabel = (date: string) => {
+  if (!date) return "";
+  // Agar date "YYYY-MM-DD" format me hai tabhi normal parse karo
+  const cleanDate = date.slice(0, 10);
+  const parsedDate = new Date(`${cleanDate}T00:00:00`);
+  
+  if (isNaN(parsedDate.getTime())) {
+    // Agar weekly ya monthly label hai (jaise "2026-W09" ya "2026-03"), toh direct wahi string return kar do
+    return date;
+  }
+
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(parsedDate);
+};
+
 const total = (
   data: SellerAnalyticsHistoryPoint[],
   field: keyof SellerAnalyticsHistoryPoint,
