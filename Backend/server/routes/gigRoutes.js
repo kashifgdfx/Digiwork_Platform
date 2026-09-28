@@ -29,18 +29,16 @@ async function withSeller(gig) {
 router.get("/", async (req, res) => {
   try {
     await connectDB();
-    // Legacy gigs without a moderationStatus remain visible; newly submitted
-    // gigs must be approved by an admin before appearing in the marketplace.
-    const filter = { $and: [{ $or: [{ moderationStatus: 'approved' }, { moderationStatus: { $exists: false } }] }] };
+    const filter = { $and: [{ $or: [{ moderationStatus: 'approved' }, { moderationStatus: {$exists: false } }] }] };
     if (req.query.category)
       filter.category = {
         $regex: `^${req.query.category.trim()}$`,
         $options: "i",
       };
     if (req.query.search)
-      filter.$and.push({ $or: [
-        { title: { $regex: req.query.search.trim(), $options: "i" } },
-        { description: { $regex: req.query.search.trim(), $options: "i" } },
+      filter.$and.push({$or: [
+        { title: { $regex: req.query.search.trim(),$options: "i" } },
+        { description: { $regex: req.query.search.trim(),$options: "i" } },
         { tags: { $in: [new RegExp(req.query.search.trim(), "i")] } },
       ] });
     if (req.query.minPrice || req.query.maxPrice) {
@@ -70,15 +68,13 @@ router.get("/", async (req, res) => {
   }
 });
 
-
 router.post("/", async (req, res) => {
   try {
     await connectDB();
     const body = req.body;
     const loggedInUser = await authenticatedUser(req);
     if (!loggedInUser) return res.status(401).json({ success: false, error: "Authentication required" });
-    // Publishing a first gig opts a buyer into the seller role. Admin is never
-    // assignable through public endpoints; it is only set by an administrator.
+    
     if (loggedInUser.role === 'buyer') {
       await User.updateOne({ id: loggedInUser.id }, { $set: { role: 'seller' } });
       loggedInUser.role = 'seller';
@@ -106,7 +102,7 @@ router.post("/", async (req, res) => {
     const gigObject = gig.toObject();
     const gigWithSeller = await withSeller(gigObject);
 
-    // Notify the seller in real-time so their bell lights up immediately.
+    // 1. Notify the seller that gig is submitted for review
     await createNotification({
       userId: loggedInUser.id,
       type: "gig",
@@ -116,6 +112,62 @@ router.post("/", async (req, res) => {
       meta: { gigId: gig.id },
     });
 
+    // 2. Notify all admins in database and send email via Nodemailer
+    try {
+      const Notification = require("../models/Notification");
+      const admins = await User.find({
+        $or: [
+          { email: "kashifqureshi9758@gmail.com" },
+          { role: "admin" },
+        ],
+      }).lean();
+
+      if (admins && admins.length > 0) {
+        for (const admin of admins) {
+          // Don't send admin notification to the seller themselves if they are an admin creating a gig
+          if (admin.id === loggedInUser.id) continue;
+
+          await Notification.create({
+            id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            userId: admin.id || admin._id.toString(),
+            type: "gig",
+            title: "New Gig Pending Approval",
+            message: `${loggedInUser.name} has created a new gig titled "${gig.title}". Please review and approve it.`,
+            link: "/admin/dashboard",
+            meta: { gigId: gig._id },
+            read: false,
+          });
+        }
+      }
+
+      const nodemailer = require("nodemailer");
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = Number(process.env.SMTP_PORT || 587);
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+
+      if (smtpHost && smtpUser && smtpPass) {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpPort === 465,
+          auth: { user: smtpUser, pass: smtpPass },
+        });
+
+        const adminEmails = admins.map(a => a.email).filter(Boolean);
+        const recipients = adminEmails.length > 0 ? adminEmails : ["kashifqureshi9758@gmail.com"];
+
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || smtpUser,
+          to: recipients.join(", "),
+          subject: "New Gig Pending Approval",
+          text: `${loggedInUser.name} has submitted the gig "${gig.title}" for moderation and approval. Please review it in the admin dashboard.`,
+        });
+      }
+    } catch (adminNotificationError) {
+      console.error("Admin notification/email failed:", adminNotificationError);
+    }
+
     // Broadcast to all connected clients so gig listings update in real-time.
     const io = getIO();
     if (io) {
@@ -124,9 +176,7 @@ router.post("/", async (req, res) => {
 
     res.status(201).json({ success: true, gig: gigWithSeller });
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, error: error.message || "Failed to create gig" });
+    res.status(500).json({ success: false, error: error.message || "Failed to create gig" });
   }
 });
 
