@@ -91,7 +91,7 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
       {/* Budget Filter */}
       <div className="pt-2 border-t border-gray-100">
         <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
-          Budget ($ USD)
+          Budget (₹ INR)
         </h4>
         <div className="flex items-center gap-2 mb-3">
           <input
@@ -123,19 +123,19 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
             onClick={() => onPriceChange('', 50)}
             className="px-2 py-1 text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
           >
-            Under $50
+            Under ₹50
           </button>
           <button
             onClick={() => onPriceChange(50, 150)}
             className="px-2 py-1 text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
           >
-            $50 - $150
+            ₹50 - ₹150
           </button>
           <button
             onClick={() => onPriceChange(150, '')}
             className="px-2 py-1 text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
           >
-            $150 & Above
+            ₹150 & Above
           </button>
         </div>
       </div>

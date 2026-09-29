@@ -175,7 +175,7 @@ export default function BuyerDashboardPage() {
           </div>
           <div>
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Total Spent</span>
-            <span className="text-xl sm:text-2xl font-black text-gray-900">${totalSpent}</span>
+            <span className="text-xl sm:text-2xl font-black text-gray-900">₹{totalSpent.toLocaleString("en-IN")}</span>
           </div>
         </div>
 
@@ -305,7 +305,7 @@ export default function BuyerDashboardPage() {
 
                   <div className="text-right">
                     <span className="text-[11px] text-gray-400 block">Amount</span>
-                    <span className="text-lg font-black text-gray-900">${order.price}</span>
+                    <span className="text-lg font-black text-gray-900">₹{order.price?.toLocaleString?.("en-IN") ?? order.price}</span>
                   </div>
                 </div>
               </div>

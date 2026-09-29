@@ -231,7 +231,7 @@ export const CreateGigModal: React.FC<CreateGigModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Starting Price ($ USD)
+                  Starting Price (₹ INR)
                 </label>
                 <input
                   type="number"

@@ -84,7 +84,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
               <div className="flex justify-between">
                 <span>Package:</span>
-                <span className="font-semibold text-gray-800">{packageTier.name} (${packageTier.price})</span>
+                <span className="font-semibold text-gray-800">{packageTier.name} (₹{packageTier.price})</span>
               </div>
               <div className="flex justify-between">
                 <span>Est. Delivery:</span>
@@ -182,7 +182,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   }`}
                 >
                   <Wallet size={14} />
-                  <span>Balance ($500)</span>
+                  <span>Balance (₹500)</span>
                 </button>
               </div>
             </div>
@@ -229,15 +229,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="space-y-2 border-t border-gray-200 pt-4 mb-6 text-sm">
               <div className="flex justify-between text-gray-600 text-xs">
                 <span>{packageTier.name} Package Subtotal</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>₹{subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-gray-600 text-xs">
                 <span>Service Fee & Taxes</span>
-                <span>${serviceFee.toFixed(2)}</span>
+                <span>₹{serviceFee.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-gray-900 font-bold text-base pt-2 border-t border-gray-100">
                 <span>Total Due</span>
-                <span className="text-[#1dbf73]">${total}</span>
+                <span className="text-[#1dbf73]">₹{Number(total).toLocaleString("en-IN")}</span>
               </div>
             </div>
 
@@ -248,7 +248,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               className="w-full py-3 bg-[#1dbf73] hover:bg-[#19a463] text-white font-bold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Lock size={16} />
-              {isSubmitting ? 'Securing Transaction...' : `Confirm & Pay $${total}`}
+              {isSubmitting ? 'Securing Transaction...' : `Confirm & Pay ₹${Number(total).toLocaleString("en-IN")}`}
             </button>
 
             {orderError && (

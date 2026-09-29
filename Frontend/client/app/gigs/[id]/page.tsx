@@ -467,7 +467,7 @@ export default function GigDetailPage({ params }: PageProps ) {
                   {selectedPackage.name} Package
                 </span>
                 <span className="text-2xl font-black text-gray-900">
-                  ${selectedPackage.price}
+                  ₹{selectedPackage.price}
                 </span>
               </div>
 
@@ -522,7 +522,7 @@ export default function GigDetailPage({ params }: PageProps ) {
                   className="w-full py-3.5 bg-[#1dbf73] hover:bg-[#19a463] text-white font-bold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                 >
                   <Sparkles size={16} />
-                  <span>Continue (${selectedPackage.price})</span>
+                  <span>Continue (₹{selectedPackage.price})</span>
                 </button>
 
                 <button

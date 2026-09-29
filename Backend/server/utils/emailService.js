@@ -27,7 +27,7 @@ function buildResetEmailHtml({ name, resetLink, expiresInMinutes }) {
       <div style="max-width:620px; margin:0 auto; background:#ffffff; border:1px solid #e5e7eb; border-radius:18px; overflow:hidden;">
         <div style="background:linear-gradient(135deg,#1dbf73,#12a46b); padding:24px 32px; color:#fff;">
           <div style="display:flex; align-items:center; gap:12px; font-weight:700; font-size:24px;">
-            <div style="width:40px; height:40px; border-radius:12px; background:rgba(255,255,255,0.18); display:inline-flex; align-items:center; justify-content:center; font-size:22px;">F</div>
+
             <span>DigiWork</span>
           </div>
         </div>

@@ -30,6 +30,21 @@ router.get('/stats', async (_req, res) => {
   } catch (error) { return res.status(500).json({ success: false, error: error.message || 'Unable to load admin statistics' }); }
 });
 
+router.get('/pending-count', async (_req, res) => {
+  try {
+    await connectDB();
+    const recentSignupCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [pendingOrders, newSignups, pendingGigs] = await Promise.all([
+      Order.countDocuments({ status: 'pending' }),
+      User.countDocuments({ role: { $ne: 'admin' }, createdAt: { $gte: recentSignupCutoff } }),
+      Gig.countDocuments({ moderationStatus: 'pending' }),
+    ]);
+    return res.json({ success: true, count: pendingOrders + newSignups + pendingGigs });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message || 'Unable to load admin pending count' });
+  }
+});
+
 router.get('/users', async (req, res) => {
   try {
     await connectDB(); const search = String(req.query.search || '').trim();

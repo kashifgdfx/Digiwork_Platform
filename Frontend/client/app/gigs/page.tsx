@@ -202,7 +202,7 @@ function GigsContent() {
 
             {(minPrice !== '' || maxPrice !== '') && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full border border-gray-200">
-                Budget: ${minPrice || 0} - ${maxPrice || '∞'}
+                Budget: ₹{minPrice || 0} - ₹{maxPrice || '∞'}
                 <button onClick={() => { setMinPrice(''); setMaxPrice(''); }}><X size={12} /></button>
               </span>
             )}

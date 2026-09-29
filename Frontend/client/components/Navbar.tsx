@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { useConfirm } from "@/context/ConfirmContext";
 import { NotificationBell } from "@/components/NotificationBell";
+import { apiFetch } from "@/lib/api";
 import {
   Heart,
   LayoutDashboard,
@@ -36,6 +37,7 @@ export const Navbar: React.FC = () => {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [adminPendingCount, setAdminPendingCount] = useState(0);
   const { confirm } = useConfirm();
   const activeUser = currentUser;
 
@@ -48,6 +50,36 @@ export const Navbar: React.FC = () => {
   const activeOrdersCount = orders.filter(
     (o) => o.status === "in_progress",
   ).length;
+
+  useEffect(() => {
+    if (currentUser?.role !== "admin") {
+      setAdminPendingCount(0);
+      return;
+    }
+
+    let active = true;
+    const refreshAdminPendingCount = async () => {
+      try {
+        const response = await apiFetch("/api/admin/pending-count");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (active) setAdminPendingCount(Number(data.count) || 0);
+      } catch {
+        // Keep the last known count if the API is temporarily unavailable.
+      }
+    };
+
+    refreshAdminPendingCount();
+    const interval = window.setInterval(refreshAdminPendingCount, 15000);
+    window.addEventListener("focus", refreshAdminPendingCount);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshAdminPendingCount);
+    };
+  }, [currentUser?.role]);
+
+  const displayAdminPendingCount = adminPendingCount > 99 ? "99+" : adminPendingCount;
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,6 +218,11 @@ export const Navbar: React.FC = () => {
                   >
                     <UserShield size={16} className="shrink-0" />
                     <span className="whitespace-nowrap">Admin Panel</span>
+                    {adminPendingCount > 0 && (
+                      <span className="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-white px-1 text-[10px] font-bold text-[#168f58]">
+                        {displayAdminPendingCount}
+                      </span>
+                    )}
                   </Link>
                 )}
 
@@ -256,6 +293,11 @@ export const Navbar: React.FC = () => {
                         >
                           <UserShield size={18} className="shrink-0" />
                           <span className="whitespace-nowrap">Admin Panel</span>
+                          {adminPendingCount > 0 && (
+                            <span className="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-[#1dbf73] px-1 text-[10px] font-bold text-white">
+                              {displayAdminPendingCount}
+                            </span>
+                          )}
                         </Link>
                       )}
 
@@ -444,6 +486,11 @@ export const Navbar: React.FC = () => {
                 className="flex items-center gap-2 py-2 text-sm font-medium text-gray-700 hover:text-[#1dbf73]"
               >
                 <span>Admin Panel</span>
+                {adminPendingCount > 0 && (
+                  <span className="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-[#1dbf73] px-1 text-[10px] font-bold text-white">
+                    {displayAdminPendingCount}
+                  </span>
+                )}
                 <UserShield size={16} />
               </Link>
             )}

@@ -439,7 +439,7 @@ export const mockGigs: Gig[] = [
       country: 'Canada',
       memberSince: 'Feb 2020',
       responseTime: '1 hour',
-      bio: 'Professional copywriter with direct-response background. Generated over $10M+ in client revenue.',
+      bio: 'Professional copywriter with direct-response background. Generated over ₹10M+ in client revenue.',
       languages: ['English (Native)', 'French (Fluent)'],
     },
     images: [
