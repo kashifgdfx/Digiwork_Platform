@@ -12,6 +12,8 @@ const MessageSchema = new mongoose.Schema({
   seenAt: { type: Date, default: null },
   status: { type: String, enum: ['sent', 'delivered', 'seen'], default: 'sent' },
   isRead: { type: Boolean, default: false },
+  isEdited: { type: Boolean, default: false },
+  isDeleted: { type: Boolean, default: false },
 }, { timestamps: { createdAt: true, updatedAt: false }, versionKey: false });
 
 MessageSchema.index({ conversationId: 1, createdAt: 1 });

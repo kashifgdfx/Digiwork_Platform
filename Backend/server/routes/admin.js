@@ -34,14 +34,81 @@ router.get('/pending-count', async (_req, res) => {
   try {
     await connectDB();
     const recentSignupCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentOrderFilter = { createdAt: { $gte: recentSignupCutoff }, status: { $nin: ['cancelled', 'completed'] } };
     const [pendingOrders, newSignups, pendingGigs] = await Promise.all([
-      Order.countDocuments({ status: 'pending' }),
+      Order.countDocuments(recentOrderFilter),
       User.countDocuments({ role: { $ne: 'admin' }, createdAt: { $gte: recentSignupCutoff } }),
       Gig.countDocuments({ moderationStatus: 'pending' }),
     ]);
     return res.json({ success: true, count: pendingOrders + newSignups + pendingGigs });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message || 'Unable to load admin pending count' });
+  }
+});
+
+router.get('/pending-items', async (_req, res) => {
+  try {
+    await connectDB();
+    const recentSignupCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentOrderFilter = { createdAt: { $gte: recentSignupCutoff }, status: { $nin: ['cancelled', 'completed'] } };
+    const [orders, users, gigs] = await Promise.all([
+      Order.find(recentOrderFilter).select('id gigTitle buyerName createdAt').sort({ createdAt: -1 }).limit(10).lean(),
+      User.find({ role: { $ne: 'admin' }, createdAt: { $gte: recentSignupCutoff } }).select('id name email createdAt').sort({ createdAt: -1 }).limit(10).lean(),
+      Gig.find({ moderationStatus: 'pending' }).select('id title sellerId createdAt').sort({ createdAt: -1 }).limit(10).lean(),
+    ]);
+
+    const items = [
+      ...gigs.map((gig) => ({
+        id: `gig:${gig.id}`,
+        type: 'gig',
+        title: 'Gig awaiting moderation',
+        description: `“${gig.title}” is waiting for approval.`,
+        createdAt: gig.createdAt,
+        href: '/admin/dashboard?tab=gigs',
+      })),
+      ...orders.map((order) => ({
+        id: `order:${order.id}`,
+        type: 'order',
+        title: 'New order placed',
+        description: `${order.buyerName || 'A buyer'} placed an order for “${order.gigTitle}”.`,
+        createdAt: order.createdAt,
+        href: '/admin/dashboard?tab=orders',
+      })),
+      ...users.map((user) => ({
+        id: `user:${user.id}`,
+        type: 'user',
+        title: 'New user signup',
+        description: `${user.name} (${user.email}) joined the platform.`,
+        createdAt: user.createdAt,
+        href: '/admin/dashboard?tab=users',
+      })),
+    ].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+    return res.json(items);
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message || 'Unable to load pending admin items' });
+  }
+});
+
+router.patch('/pending-items/:id/read', async (req, res) => {
+  try {
+    await connectDB();
+    const itemId = req.params.id; // e.g. "gig:123", "order:456", etc.
+    const [type, actualId] = itemId.split(':');
+
+    if (type === 'gig') {
+      await Gig.findOneAndUpdate({ id: actualId }, { $set: { moderationStatus: 'approved' } });
+    } else if (type === 'order') {
+      // Order ke liye status update ya flag set kar sakte hain
+      await Order.findOneAndUpdate({ id: actualId }, { $set: { adminViewed: true } });
+    } else if (type === 'user') {
+      // User ke liye notification viewed flag
+      await User.findOneAndUpdate({ id: actualId }, { $set: { adminViewed: true } });
+    }
+
+    return res.json({ success: true, message: 'Marked as read successfully' });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

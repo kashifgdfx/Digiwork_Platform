@@ -199,6 +199,8 @@ export interface Message {
   text: string;
   timestamp: string;
   isRead: boolean;
+  isEdited?: boolean;
+  isDeleted?: boolean;
   deliveredAt?: string | null;
   seenAt?: string | null;
   status?: 'sent' | 'delivered' | 'seen';

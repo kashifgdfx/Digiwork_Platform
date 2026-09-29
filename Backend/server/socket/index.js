@@ -47,6 +47,8 @@ function buildMessagePayload(message, senderName = '', senderAvatar = '') {
     senderAvatar,
     timestamp: message.sentAt || message.createdAt,
     status: message.status || 'sent',
+    isEdited: message.isEdited || false,
+    isDeleted: message.isDeleted || false,
   };
 }
 
@@ -180,11 +182,12 @@ function registerSocketServer(server, options = {}) {
           seenAt: null,
           status: 'sent',
           isRead: false,
+          isEdited: false,
+          isDeleted: false,
         });
 
         const receiverIsOnline = Boolean(activeUsers.get(receiverId)?.size);
         const deliveredStatus = receiverIsOnline ? 'delivered' : 'sent';
-
         const deliveredAt = receiverIsOnline ? new Date() : null;
 
         if (receiverIsOnline) {
@@ -202,7 +205,7 @@ function registerSocketServer(server, options = {}) {
             $set: {
               status: deliveredStatus,
               deliveredAt,
-              isRead: false, // receiver hasn't seen it yet
+              isRead: false,
             },
           }
         );
@@ -211,11 +214,7 @@ function registerSocketServer(server, options = {}) {
         const updatedConversation = await Conversation.findOneAndUpdate(
           { _id: conversation._id },
           {
-            $set: {
-              lastMessage: message.text,
-              lastMessageTimestamp: message.sentAt,
-            },
-            $inc: { [unreadField]: 1 },
+            $set: {               lastMessage: message.text,               lastMessageTimestamp: message.sentAt,             },$inc: { [unreadField]: 1 },
           },
           { new: true }
         ).lean();
@@ -241,6 +240,92 @@ function registerSocketServer(server, options = {}) {
       } catch (error) {
         console.error('Socket send-message error:', error);
         socket.emit('message:error', { message: 'Unable to send message' });
+      }
+    });
+
+    // ==========================================
+    // NEW: Handle Message Edit Event
+    // ==========================================
+    socket.on('message:edit', async ({ conversationId, messageId, newText }) => {
+      try {
+        if (!conversationId || !messageId || !newText || !String(newText).trim()) {
+          return socket.emit('message:error', { message: 'Invalid edit parameters' });
+        }
+
+        await connectDB();
+
+        // Check if message belongs to this user and conversation
+        const message = await Message.findOne({ id: messageId, conversationId });
+        if (!message) {
+          return socket.emit('message:error', { message: 'Message not found' });
+        }
+
+        if (message.senderId !== userId) {
+          return socket.emit('message:error', { message: 'You can only edit your own messages' });
+        }
+
+        // Update message in DB
+        message.text = String(newText).trim();
+        message.isEdited = true;
+        await message.save();
+
+        const updatedPayload = {
+          messageId: message.id,
+          conversationId,
+          newText: message.text,
+          isEdited: true,
+        };
+
+        // Broadcast to everyone in the conversation room (both users see it updated)
+        io.to(`conversation:${conversationId}`).emit('message:edited', updatedPayload);
+        io.to(`user:${userId}`).emit('message:edited', updatedPayload);
+
+      } catch (error) {
+        console.error('Socket message:edit error:', error);
+        socket.emit('message:error', { message: 'Unable to edit message' });
+      }
+    });
+
+    // ==========================================
+    // NEW: Handle Message Delete Event
+    // ==========================================
+    socket.on('message:delete', async ({ conversationId, messageId }) => {
+      try {
+        if (!conversationId || !messageId) {
+          return socket.emit('message:error', { message: 'Invalid delete parameters' });
+        }
+
+        await connectDB();
+
+        const message = await Message.findOne({ id: messageId, conversationId });
+        if (!message) {
+          return socket.emit('message:error', { message: 'Message not found' });
+        }
+
+        if (message.senderId !== userId) {
+          return socket.emit('message:error', { message: 'You can only delete your own messages' });
+        }
+
+        // Mark as deleted or clear text
+        message.text = 'This message was deleted';
+        message.isDeleted = true;
+        message.attachments = [];
+        await message.save();
+
+        const deletedPayload = {
+          messageId: message.id,
+          conversationId,
+          text: 'This message was deleted',
+          isDeleted: true,
+        };
+
+        // Broadcast to conversation room and users
+        io.to(`conversation:${conversationId}`).emit('message:deleted', deletedPayload);
+        io.to(`user:${userId}`).emit('message:deleted', deletedPayload);
+
+      } catch (error) {
+        console.error('Socket message:delete error:', error);
+        socket.emit('message:error', { message: 'Unable to delete message' });
       }
     });
 
@@ -318,7 +403,6 @@ function registerSocketServer(server, options = {}) {
       }
     });
 
-    // Client can request live online status for a list of userIds
     socket.on('presence:get', ({ userIds }) => {
       if (!Array.isArray(userIds)) return;
       const response = userIds.map((uid) => ({

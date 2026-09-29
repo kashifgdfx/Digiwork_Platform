@@ -121,6 +121,13 @@ export default function AdminDashboard() {
   }, [request]);
 
   useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    if (requestedTab === "overview" || requestedTab === "users" || requestedTab === "orders" || requestedTab === "gigs") {
+      setTab(requestedTab);
+    }
+  }, []);
+
+  useEffect(() => {
     if (isAuthLoading) return;
     if (!currentUser) {
       refreshCurrentUser();

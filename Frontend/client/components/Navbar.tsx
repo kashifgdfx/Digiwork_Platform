@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { useConfirm } from "@/context/ConfirmContext";
 import { NotificationBell } from "@/components/NotificationBell";
+import { AdminTasksDropdown } from "@/components/AdminTasksDropdown";
 import { apiFetch } from "@/lib/api";
 import {
   Heart,
@@ -89,6 +90,7 @@ export const Navbar: React.FC = () => {
       router.push("/gigs");
     }
   };
+  
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-xs">
@@ -212,18 +214,7 @@ export const Navbar: React.FC = () => {
 
                 {/* Desktop Admin Panel Link */}
                 {currentUser?.role === "admin" && (
-                  <Link
-                    href="/admin/dashboard"
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#1DBF73] hover:bg-[#19a463] rounded-md border border-[#1DBF73] transition-colors whitespace-nowrap shrink-0"
-                  >
-                    <UserShield size={16} className="shrink-0" />
-                    <span className="whitespace-nowrap">Admin Panel</span>
-                    {adminPendingCount > 0 && (
-                      <span className="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-white px-1 text-[10px] font-bold text-[#168f58]">
-                        {displayAdminPendingCount}
-                      </span>
-                    )}
-                  </Link>
+                  <AdminTasksDropdown count={adminPendingCount} displayCount={displayAdminPendingCount} />
                 )}
 
                 {/* User Dropdown */}
@@ -285,21 +276,15 @@ export const Navbar: React.FC = () => {
                         <LayoutDashboard size={16} />
                         <span>Seller Dashboard</span>
                       </Link>
-
+{/* 
                       {currentUser?.role === "admin" && (
-                        <Link
-                          href="/admin/dashboard"
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-[#1dbf73] shrink-0"
-                        >
-                          <UserShield size={18} className="shrink-0" />
-                          <span className="whitespace-nowrap">Admin Panel</span>
-                          {adminPendingCount > 0 && (
-                            <span className="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-[#1dbf73] px-1 text-[10px] font-bold text-white">
-                              {displayAdminPendingCount}
-                            </span>
-                          )}
-                        </Link>
-                      )}
+                        <AdminTasksDropdown
+                          count={adminPendingCount}
+                          displayCount={displayAdminPendingCount}
+                          mobile
+                          className="px-4"
+                        />
+                      )} */}
 
                       <Link
                         href="/messages"
@@ -480,19 +465,12 @@ export const Navbar: React.FC = () => {
 
             {/* Mobile Admin Panel Link */}
             {currentUser?.role === "admin" && (
-              <Link
-                href="/admin/dashboard"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 py-2 text-sm font-medium text-gray-700 hover:text-[#1dbf73]"
-              >
-                <span>Admin Panel</span>
-                {adminPendingCount > 0 && (
-                  <span className="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-[#1dbf73] px-1 text-[10px] font-bold text-white">
-                    {displayAdminPendingCount}
-                  </span>
-                )}
-                <UserShield size={16} />
-              </Link>
+              <AdminTasksDropdown
+                count={adminPendingCount}
+                displayCount={displayAdminPendingCount}
+                mobile
+                onNavigate={() => setMobileMenuOpen(false)}
+              />
             )}
 
             <Link

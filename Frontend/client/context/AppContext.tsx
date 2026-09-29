@@ -660,6 +660,36 @@ audio.play()
       });
     };
 
+    const handleMessageEdited = (payload: { conversationId?: string; messageId?: string; newText?: string; isEdited?: boolean }) => {
+      if (!payload?.conversationId || !payload.messageId || typeof payload.newText !== 'string') return;
+      setMessages((prev) => {
+        const conversationMessages = prev[payload.conversationId!] || [];
+        return {
+          ...prev,
+          [payload.conversationId!]: conversationMessages.map((message) =>
+            message.id === payload.messageId
+              ? { ...message, text: payload.newText!, isEdited: true }
+              : message
+          ),
+        };
+      });
+    };
+
+    const handleMessageDeleted = (payload: { conversationId?: string; messageId?: string; text?: string }) => {
+      if (!payload?.conversationId || !payload.messageId) return;
+      setMessages((prev) => {
+        const conversationMessages = prev[payload.conversationId!] || [];
+        return {
+          ...prev,
+          [payload.conversationId!]: conversationMessages.map((message) =>
+            message.id === payload.messageId
+              ? { ...message, text: payload.text || 'This message was deleted', isDeleted: true }
+              : message
+          ),
+        };
+      });
+    };
+
     const handleTypingStart = ({ conversationId, userId }: { conversationId: string; userId: string }) => {
       if (userId === currentUser.id) return;
       setTypingUsers((prev) => ({
@@ -794,6 +824,8 @@ audio.play()
     socket.on('receive-message', handleNewMessage);
     socket.on('message_sent', handleMessageSent);
     socket.on('message:sent', handleMessageSent);
+    socket.on('message:edited', handleMessageEdited);
+    socket.on('message:deleted', handleMessageDeleted);
     socket.on('messages_read', handleMessagesRead);
     socket.on('user_online', handlePresenceUpdate);
     socket.on('user_offline', handlePresenceUpdate);
@@ -836,6 +868,8 @@ audio.play()
       socket.off('receive-message', handleNewMessage);
       socket.off('message_sent', handleMessageSent);
       socket.off('message:sent', handleMessageSent);
+      socket.off('message:edited', handleMessageEdited);
+      socket.off('message:deleted', handleMessageDeleted);
       socket.off('messages_read', handleMessagesRead);
       socket.off('user_online', handlePresenceUpdate);
       socket.off('user_offline', handlePresenceUpdate);

@@ -269,7 +269,7 @@ export default function GigDetailPage({ params }: PageProps ) {
           </div>
 
           {/* About The Seller Card */}
-          <div className="pt-6 border-t border-gray-100">
+       <div className="pt-6 border-t border-gray-100">
             <h2 className="text-xl font-bold text-gray-900 mb-4">About The Seller</h2>
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
@@ -288,14 +288,17 @@ export default function GigDetailPage({ params }: PageProps ) {
                   </div>
                 </div>
 
-                <button
-                  onClick={handleContactSeller}
-                  disabled={isOwnGig || isContacting}
-                  className="px-5 py-2.5 border-2 border-gray-900 hover:border-[#1dbf73] hover:text-[#1dbf73] text-gray-900 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2"
-                >
-                  <MessageSquare size={16} />
-                  <span>{isContacting ? 'Opening...' : 'Contact Seller'}</span>
-                </button>
+                {/* Hide Contact Seller button if it's the owner's own gig */}
+                {!isOwnGig && (
+                  <button
+                    onClick={handleContactSeller}
+                    disabled={isContacting}
+                    className="px-5 py-2.5 border-2 border-gray-900 hover:border-[#1dbf73] hover:text-[#1dbf73] text-gray-900 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2"
+                  >
+                    <MessageSquare size={16} />
+                    <span>{isContacting ? 'Opening...' : 'Contact Seller'}</span>
+                  </button>
+                )}
               </div>
 
               {/* Seller Metadata Grid */}
@@ -461,86 +464,95 @@ export default function GigDetailPage({ params }: PageProps ) {
             </div>
 
             {/* Selected Package Details */}
-            <div className="p-6 space-y-6">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  {selectedPackage.name} Package
+          {/* Selected Package Details */}
+          <div className="p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                {selectedPackage.name} Package
+              </span>
+              <span className="text-2xl font-black text-gray-900">
+                ₹{selectedPackage.price}
+              </span>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 mb-1">
+                {selectedPackage.title}
+              </h3>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                {selectedPackage.description}
+              </p>
+            </div>
+
+            {/* Delivery Turnaround & Revisions */}
+            <div className="flex items-center gap-6 text-xs font-semibold text-gray-700 pt-2 border-t border-gray-100">
+              <div className="flex items-center gap-1.5">
+                <Clock size={16} className="text-[#1dbf73]" />
+                <span>{selectedPackage.deliveryDays} Days Delivery</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <RotateCcw size={16} className="text-[#1dbf73]" />
+                <span>
+                  {typeof selectedPackage.revisions === 'number'
+                    ? `${selectedPackage.revisions} Revisions`
+                    : 'Unlimited Revisions'}
                 </span>
-                <span className="text-2xl font-black text-gray-900">
-                  ₹{selectedPackage.price}
-                </span>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1">
-                  {selectedPackage.title}
-                </h3>
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  {selectedPackage.description}
-                </p>
-              </div>
-
-              {/* Delivery Turnaround & Revisions */}
-              <div className="flex items-center gap-6 text-xs font-semibold text-gray-700 pt-2 border-t border-gray-100">
-                <div className="flex items-center gap-1.5">
-                  <Clock size={16} className="text-[#1dbf73]" />
-                  <span>{selectedPackage.deliveryDays} Days Delivery</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <RotateCcw size={16} className="text-[#1dbf73]" />
-                  <span>
-                    {typeof selectedPackage.revisions === 'number'
-                      ? `${selectedPackage.revisions} Revisions`
-                      : 'Unlimited Revisions'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Features Checklist */}
-              <div className="space-y-2.5 text-xs text-gray-600">
-                <p className="font-bold text-gray-700 text-[11px] uppercase tracking-wider">
-                  What&apos;s Included
-                </p>
-                {selectedPackage.features.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    {f.included ? (
-                      <Check size={15} className="text-[#1dbf73] shrink-0" />
-                    ) : (
-                      <CrossIcon size={15} className="text-gray-300 shrink-0" />
-                    )}
-                    <span className={f.included ? 'text-gray-800' : 'text-gray-400'}>
-                      {f.name}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-3 pt-4 border-t border-gray-100">
-                <button
-                  onClick={() => setIsCheckoutOpen(true)}
-                  className="w-full py-3.5 bg-[#1dbf73] hover:bg-[#19a463] text-white font-bold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={16} />
-                  <span>Continue (₹{selectedPackage.price})</span>
-                </button>
-
-                <button
-                  onClick={handleContactSeller}
-                  disabled={isOwnGig || isContacting}
-                  className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <MessageSquare size={14} />
-                  <span>{isContacting ? 'Opening...' : `Contact Seller (${gig.seller.name})`}</span>
-                </button>
-              </div>
-
-              {/* Escrow Guarantee */}
-              <div className="flex items-center justify-center gap-2 text-[11px] text-gray-400 pt-2">
-                <ShieldCheck size={14} className="text-[#1dbf73]" />
-                <span>Simulated Escrow Protection</span>
               </div>
             </div>
+
+            {/* Features Checklist */}
+            <div className="space-y-2.5 text-xs text-gray-600">
+              <p className="font-bold text-gray-700 text-[11px] uppercase tracking-wider">
+                What&apos;s Included
+              </p>
+              {selectedPackage.features.map((f, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  {f.included ? (
+                    <Check size={15} className="text-[#1dbf73] shrink-0" />
+                  ) : (
+                    <CrossIcon size={15} className="text-gray-300 shrink-0" />
+                  )}
+                  <span className={f.included ? 'text-gray-800' : 'text-gray-400'}>
+                    {f.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Action Buttons / Self-Gig Restriction */}
+            <div className="space-y-3 pt-4 border-t border-gray-100">
+              {isOwnGig ? (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center text-xs font-medium text-amber-800 leading-relaxed">
+                 This is your own gig, so you cannot purchase it or contact yourself through it.
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setIsCheckoutOpen(true)}
+                    className="w-full py-3.5 bg-[#1dbf73] hover:bg-[#19a463] text-white font-bold text-sm rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <Sparkles size={16} />
+                    <span>Continue (₹{selectedPackage.price})</span>
+                  </button>
+
+                  <button
+                    onClick={handleContactSeller}
+                    disabled={isContacting}
+                    className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <MessageSquare size={14} />
+                    <span>{isContacting ? 'Opening...' : `Contact Seller (${gig.seller.name})`}</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Escrow Guarantee */}
+            <div className="flex items-center justify-center gap-2 text-[11px] text-gray-400 pt-2">
+              <ShieldCheck size={14} className="text-[#1dbf73]" />
+              <span>Simulated Escrow Protection</span>
+            </div>
+          </div>
           </div>
         </div>
       </div>

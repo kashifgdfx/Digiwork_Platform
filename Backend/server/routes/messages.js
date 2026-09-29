@@ -21,6 +21,8 @@ router.get('/:conversationId', async (req, res) => {
   }
 });
 
+
+
 router.post('/', async (req, res) => {
   const { conversationId, senderId, receiverId, text, clientMessageId } = req.body || {};
   if (![conversationId, senderId, receiverId, text].every(requiredText)) {

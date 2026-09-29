@@ -81,7 +81,7 @@ router.post("/", async (req, res) => {
     if (body.sellerId === currentBuyerId) {
       return res.status(400).json({ 
         success: false, 
-        error: "Bhai, aap apni khud ki gig purchase nahi kar sakte!" 
+        error: "Sorry ! You cannot purchase your own gig. Please use a different account to place an order." 
       });
     }
 

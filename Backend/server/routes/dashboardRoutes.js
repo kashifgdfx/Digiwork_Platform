@@ -146,6 +146,7 @@ router.get("/seller", async (req, res) => {
   }
 });
 
+
 router.patch("/seller", async (req, res) => {
   try {
     const id = sellerId(req);

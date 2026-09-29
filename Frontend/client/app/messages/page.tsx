@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useApp } from "@/context/AppContext";
 import { MessagesSkeleton } from "@/components/skeletons/MessagesSkeleton";
 import { socketService } from "@/lib/socket";
+import { getAuthToken } from "@/lib/api";
 import { ConversationListSkeleton } from "@/components/skeletons/ConversationListSkeleton";
 import {
   ArrowLeft,
@@ -19,6 +20,9 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Pencil,
+  Trash2,
+  X,
 } from "lucide-react";
 
 function MessagesContent() {
@@ -40,7 +44,8 @@ function MessagesContent() {
     typingUsers,
     notifyTyping,
     userPresence,
-  } = useApp();
+    setMessages,
+  } = useApp() as any;
 
   const [activeConvId, setActiveConvId] = useState<string>(
     urlConvId || (conversations.length > 0 ? conversations[0].id : ""),
@@ -49,48 +54,112 @@ function MessagesContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAttachmentNotice, setShowAttachmentNotice] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
+  const [messageActionError, setMessageActionError] = useState("");
+
+  // Edit & Delete States
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const urlConversationExists = Boolean(
     urlConvId &&
-    conversations.some((conversation) => conversation.id === urlConvId),
+    conversations.some((conversation: any) => conversation.id === urlConvId),
   );
   const selectedConvId = urlConversationExists
     ? urlConvId
     : activeConvId || conversations[0]?.id || "";
-  const activeConv = conversations.find((c) => c.id === selectedConvId);
+  const activeConv = conversations.find((c: any) => c.id === selectedConvId);
   const activeMessages = selectedConvId ? messages[selectedConvId] || [] : [];
   const uniqueActiveMessages = activeMessages.filter(
-    (message, index) =>
-      activeMessages.findIndex((item) => item.id === message.id) === index,
+    (message: any, index: number) =>
+      activeMessages.findIndex((item: any) => item.id === message.id) === index,
   );
 
-  // Typing indicator (auto hides 1500ms after the last typing event).
+  // Typing indicator states
   const [showTyping, setShowTyping] = useState(false);
   const typingHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingEmitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
 
-  // 👇 Yeh useEffect apne MessagesContent component ke andar add karein
+  // Socket setup for joining room, receiving new messages, edits & deletions
   useEffect(() => {
-    const socket = socketService.getSocket();
-    if (!socket || !selectedConvId) return;
+    if (!currentUser?.id || !selectedConvId) return;
+    const socket = socketService.getSocket()
+      || socketService.connect(currentUser.id, getAuthToken() || undefined);
+    const joinSelectedConversation = () => {
+      setMessageActionError("");
+      socket.emit("join-conversation", { conversationId: selectedConvId });
+    };
+    const handleConnectionError = () => {
+      setMessageActionError("Live messaging is disconnected. Please check your connection and try again.");
+    };
+    if (socket.connected) joinSelectedConversation();
+    socket.on("connect", joinSelectedConversation);
+    socket.on("connect_error", handleConnectionError);
 
-    // 1. Backend ke mutabiq conversation room join karo
-    socket.emit("join-conversation", { conversationId: selectedConvId });
-
-    // 2. Real-time incoming message listen karo
     const handleNewMessage = (data: any) => {
       if (data?.message && data.message.conversationId === selectedConvId) {
+        // Handled by context
       }
     };
 
+    const handleMessageEdited = (updatedMessage: any) => {
+      const messageId = updatedMessage?.messageId || updatedMessage?.id;
+      if (!messageId || updatedMessage?.conversationId !== selectedConvId) return;
+      setMessageActionError("");
+
+      setMessages?.((prev: any) => {
+        const conversationMessages = prev?.[selectedConvId];
+        if (!Array.isArray(conversationMessages)) return prev;
+        return {
+          ...prev,
+          [selectedConvId]: conversationMessages.map((msg: any) =>
+            msg.id === messageId
+              ? { ...msg, text: updatedMessage.newText ?? updatedMessage.text, isEdited: true }
+              : msg,
+          ),
+        };
+      });
+    };
+
+    const handleMessageDeleted = (deletedData: any) => {
+      const messageId = deletedData?.messageId || deletedData?.id;
+      if (!messageId || deletedData?.conversationId !== selectedConvId) return;
+      setMessageActionError("");
+
+      setMessages?.((prev: any) => {
+        const conversationMessages = prev?.[selectedConvId];
+        if (!Array.isArray(conversationMessages)) return prev;
+        return {
+          ...prev,
+          [selectedConvId]: conversationMessages.map((msg: any) =>
+            msg.id === messageId
+              ? { ...msg, text: deletedData.text || "This message was deleted", isDeleted: true }
+              : msg,
+          ),
+        };
+      });
+    };
+
+    const handleMessageError = (payload: { message?: string }) => {
+      setMessageActionError(payload?.message || "Message action failed. Please try again.");
+      if (selectedConvId) loadMessages(selectedConvId).catch(() => undefined);
+    };
+
     socket.on("new_message", handleNewMessage);
+    socket.on("message:edited", handleMessageEdited);
+    socket.on("message:deleted", handleMessageDeleted);
+    socket.on("message:error", handleMessageError);
 
     return () => {
+      socket.off("connect", joinSelectedConversation);
+      socket.off("connect_error", handleConnectionError);
       socket.off("new_message", handleNewMessage);
+      socket.off("message:edited", handleMessageEdited);
+      socket.off("message:deleted", handleMessageDeleted);
+      socket.off("message:error", handleMessageError);
     };
-  }, [selectedConvId]);
+  }, [currentUser?.id, selectedConvId, setMessages]);
 
   useEffect(() => {
     const activeTypers = selectedConvId
@@ -148,7 +217,6 @@ function MessagesContent() {
     return "Offline";
   };
 
-  // Determine if chat view is active on mobile
   const isChatView = mobileView === "chat" || urlConversationExists;
 
   useEffect(() => {
@@ -156,7 +224,6 @@ function MessagesContent() {
     loadConversations(currentUser.id).catch(() => undefined);
   }, [currentUser]);
 
-  // Scroll only the chat container to bottom
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop =
@@ -170,9 +237,8 @@ function MessagesContent() {
     markConversationAsRead(selectedConvId);
   }, [selectedConvId]);
 
-  // Filter conversations
   const filteredConversations = conversations.filter(
-    (c) =>
+    (c: any) =>
       (c.participant?.name || "Unknown user")
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
@@ -184,30 +250,69 @@ function MessagesContent() {
     const textToSend = inputText.trim();
     if (!textToSend || !selectedConvId || messagingLoading) return;
 
-    // Stop the typing indicator before sending.
     if (isTypingRef.current && selectedConvId && receiverId) {
       notifyTyping(selectedConvId, receiverId, false);
       isTypingRef.current = false;
     }
 
-    // Input ko turant clear kar do taaki WhatsApp jaisa fast experience mile
     setInputText("");
 
     try {
       await sendMessage(selectedConvId, textToSend);
     } catch {
-      // Agar error aaye toh optional hai ki aap wapas text restore karna chahein ya error handle karein
-      // Par abhi ke liye context khud error handle kar raha hai
+      // Error handled by context
     }
+  };
+
+  // Edit Message Handler
+  const handleSaveEdit = (msgId: string) => {
+    if (!editText.trim()) return;
+    if (!selectedConvId || !currentUser?.id) return;
+    const socket = socketService.getSocket()
+      || socketService.connect(currentUser.id, getAuthToken() || undefined);
+    setMessageActionError("");
+    socket.emit("message:edit", { messageId: msgId, newText: editText.trim(), conversationId: selectedConvId });
+    setMessages?.((prev: any) => {
+      const conversationMessages = prev?.[selectedConvId];
+      if (!Array.isArray(conversationMessages)) return prev;
+      return {
+        ...prev,
+        [selectedConvId]: conversationMessages.map((msg: any) =>
+          msg.id === msgId ? { ...msg, text: editText.trim(), isEdited: true } : msg,
+        ),
+      };
+    });
+    setEditingMessageId(null);
+    setEditText("");
+  };
+
+  // Delete Message Handler
+  const handleDeleteMessage = (msgId: string) => {
+    if (!selectedConvId || !currentUser?.id) return;
+    const socket = socketService.getSocket()
+      || socketService.connect(currentUser.id, getAuthToken() || undefined);
+    setMessageActionError("");
+    socket.emit("message:delete", { messageId: msgId, conversationId: selectedConvId });
+    setMessages?.((prev: any) => {
+      const conversationMessages = prev?.[selectedConvId];
+      if (!Array.isArray(conversationMessages)) return prev;
+      return {
+        ...prev,
+        [selectedConvId]: conversationMessages.map((msg: any) =>
+          msg.id === msgId
+            ? { ...msg, text: "This message was deleted", isDeleted: true }
+            : msg,
+        ),
+      };
+    });
   };
 
   const handleCannedReply = async (text: string) => {
     if (!selectedConvId || messagingLoading) return;
-
     try {
       await sendMessage(selectedConvId, text);
     } catch {
-      // The context exposes the API error for the page to render.
+      // Error handled by context
     }
   };
 
@@ -229,27 +334,10 @@ function MessagesContent() {
     }, 1200);
   };
 
-  const handleAttachment = () => {
-    setShowAttachmentNotice(true);
-    setTimeout(() => setShowAttachmentNotice(false), 2500);
-  };
-
-  if (!currentUser) return <MessagesSkeleton />;
-
-  if (conversationsLoading && conversations.length === 0) {
-    return <ConversationListSkeleton />;
-  }
-
-  if (messagesLoading && selectedConvId && !activeMessages.length) {
-    return <MessagesSkeleton />;
-  }
-
   const formatMessageTime = (timestamp: any) => {
     if (!timestamp) return "";
-
     const date = new Date(timestamp);
     const now = new Date();
-
     const isToday =
       date.getDate() === now.getDate() &&
       date.getMonth() === now.getMonth() &&
@@ -268,6 +356,16 @@ function MessagesContent() {
     });
   };
 
+  if (!currentUser) return <MessagesSkeleton />;
+
+  if (conversationsLoading && conversations.length === 0) {
+    return <ConversationListSkeleton />;
+  }
+
+  if (messagesLoading && selectedConvId && !activeMessages.length) {
+    return <MessagesSkeleton />;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-2 sm:py-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-6rem)] min-h-[500px] flex flex-col font-sans">
       <div className="bg-white border border-slate-200/85 sm:rounded-3xl shadow-xl shadow-slate-100 flex-1 flex overflow-hidden backdrop-blur-xl w-full">
@@ -277,7 +375,6 @@ function MessagesContent() {
             isChatView ? "hidden md:flex" : "flex"
           }`}
         >
-          {/* Inbox Header */}
           <div className="p-4 sm:p-5 border-b border-slate-100 bg-white/80 backdrop-blur-md">
             <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -298,7 +395,6 @@ function MessagesContent() {
               </span>
             </div>
 
-            {/* Search Input */}
             <div className="relative">
               <Search
                 size={15}
@@ -314,7 +410,6 @@ function MessagesContent() {
             </div>
           </div>
 
-          {/* Conversations Threads */}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100/65 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {messagingError && (
               <div className="p-4 text-center text-xs text-rose-500 bg-rose-50/50 border-b border-rose-100">
@@ -322,7 +417,7 @@ function MessagesContent() {
               </div>
             )}
 
-            {filteredConversations.map((conv) => {
+            {filteredConversations.map((conv: any) => {
               const isSelected = conv.id === selectedConvId;
               return (
                 <button
@@ -394,12 +489,6 @@ function MessagesContent() {
                 one.
               </div>
             )}
-
-            {conversations.length > 0 && filteredConversations.length === 0 && (
-              <div className="p-8 text-center text-xs text-slate-400">
-                No matching conversations found.
-              </div>
-            )}
           </div>
         </div>
 
@@ -411,7 +500,6 @@ function MessagesContent() {
         >
           {activeConv ? (
             <>
-              {/* Chat Header */}
               <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md z-10 shadow-2xs">
                 <div className="flex items-center gap-3 min-w-0">
                   <button
@@ -486,7 +574,7 @@ function MessagesContent() {
                 </div>
               </div>
 
-              {/* Message Stream with ref attached */}
+              {/* Message Stream */}
               <div
                 ref={chatContainerRef}
                 className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 bg-slate-50/30 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
@@ -504,25 +592,83 @@ function MessagesContent() {
                   </div>
                 </div>
 
-                {uniqueActiveMessages.map((msg) => {
+                {uniqueActiveMessages.map((msg: any) => {
                   const isMe = msg.senderId === currentUser.id;
+                  const isBeingEdited = editingMessageId === msg.id;
+
                   return (
                     <div
                       key={msg.id}
-                      className={`flex flex-col ${isMe ? "items-end" : "items-start"} group`}
+                      className={`flex flex-col ${isMe ? "items-end" : "items-start"} group relative`}
                     >
-                      <div
-                        className={`max-w-[85%] sm:max-w-md lg:max-w-lg px-4 py-2.5 sm:px-4.5 sm:py-3 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-xs transition-all break-words ${
-                          isMe
-                            ? "bg-[#1dbf73] text-white rounded-br-xs shadow-emerald-500/10"
-                            : "bg-white border border-slate-200/80 text-slate-800 rounded-bl-xs"
-                        }`}
-                      >
-                        {msg.text}
+                      <div className="flex items-center gap-2 max-w-[85%] sm:max-w-md lg:max-w-lg">
+                        {isMe && !msg.isDeleted && !isBeingEdited && (
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-white border border-slate-200 shadow-xs rounded-lg px-1.5 py-0.5">
+                            <button
+                              onClick={() => {
+                                setEditingMessageId(msg.id);
+                                setEditText(msg.text);
+                              }}
+                              className="text-slate-500 hover:text-[#1dbf73] p-1"
+                              title="Edit message"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              className="text-slate-500 hover:text-rose-600 p-1"
+                              title="Delete message"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
+
+                        <div
+                          className={`px-4 py-2.5 sm:px-4.5 sm:py-3 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-xs transition-all break-words ${
+                            isMe
+                              ? "bg-[#1dbf73] text-white rounded-br-xs shadow-emerald-500/10"
+                              : "bg-white border border-slate-200/80 text-slate-800 rounded-bl-xs"
+                          }`}
+                        >
+                          {isBeingEdited ? (
+                            <div className="flex flex-col gap-2 min-w-[200px]">
+                              <input
+                                type="text"
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                className="w-full px-2 py-1 bg-white text-slate-900 rounded text-xs border border-slate-300 focus:outline-none"
+                              />
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => setEditingMessageId(null)}
+                                  className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px]"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleSaveEdit(msg.id)}
+                                  className="px-2 py-0.5 bg-slate-900 text-white rounded text-[10px]"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {msg.text}
+                              {msg.isEdited && (
+                                <span className="text-[10px] opacity-75 ml-1.5 italic">
+                                  (edited)
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-slate-400 px-1 font-medium">
-                        <span>{msg.timestamp}</span>
+                        <span>{msg.timestamp || formatMessageTime(msg.createdAt)}</span>
                         {isMe && (
                           <>
                             {msg.status === "seen" ? (
@@ -546,7 +692,6 @@ function MessagesContent() {
                 })}
               </div>
 
-              {/* Typing Indicator */}
               {showTyping && (
                 <div className="px-4 sm:px-6 py-2 text-[11px] font-medium text-[#1dbf73] flex items-center gap-2 bg-white border-t border-slate-100">
                   <span className="flex gap-0.5">
@@ -560,17 +705,12 @@ function MessagesContent() {
                 </div>
               )}
 
-              {/* Attachment Toast */}
-              {showAttachmentNotice && (
-                <div className="mx-4 sm:mx-6 my-2 p-3 bg-blue-50/90 border border-blue-200 text-blue-700 text-xs rounded-xl flex items-center gap-2.5 shadow-sm animate-in fade-in">
-                  <FileUp size={15} className="shrink-0" />
-                  <span className="font-medium truncate">
-                    File attachment simulated: Project_Specs_Draft.pdf attached.
-                  </span>
-                </div>
+              {messageActionError && (
+                <p className="border-t border-rose-100 bg-rose-50 px-4 py-2 text-xs text-rose-700" role="alert">
+                  {messageActionError}
+                </p>
               )}
 
-              {/* Quick Canned Replies */}
               <div className="px-4 sm:px-6 py-2.5 bg-white border-t border-slate-100 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
                   Suggestions:
@@ -597,15 +737,6 @@ function MessagesContent() {
                   onSubmit={handleSend}
                   className="flex items-center gap-2 sm:gap-3"
                 >
-                  {/* <button
-                    type="button"
-                    onClick={handleAttachment}
-                    className="p-2 sm:p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200/60 shrink-0"
-                    title="Attach file"
-                  >
-                    <Paperclip size={18} />
-                  </button> */}
-
                   <input
                     type="text"
                     placeholder={`Message ${activeConv.participant?.name || "this user"}...`}
