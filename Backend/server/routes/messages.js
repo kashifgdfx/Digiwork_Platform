@@ -6,6 +6,21 @@ const connectDB = require('../db');
 const { getIO } = require('../socket');
 
 const requiredText = (value) => typeof value === 'string' && value.trim().length > 0;
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const validAttachment = (value) => {
+  if (typeof value !== 'string') return false;
+  const match = value.match(/^data:([\w.+-]+\/[\w.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/);
+  if (!match) return false;
+  const mimeType = match[1].toLowerCase();
+  const allowed = mimeType.startsWith('image/') || [
+    'application/pdf', 'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain', 'text/csv', 'application/zip', 'application/octet-stream',
+  ].includes(mimeType);
+  return allowed && Buffer.from(match[2], 'base64').length <= MAX_ATTACHMENT_BYTES;
+};
 
 router.get('/:conversationId', async (req, res) => {
   const conversationId = req.params.conversationId?.trim();
@@ -24,9 +39,16 @@ router.get('/:conversationId', async (req, res) => {
 
 
 router.post('/', async (req, res) => {
-  const { conversationId, senderId, receiverId, text, clientMessageId } = req.body || {};
-  if (![conversationId, senderId, receiverId, text].every(requiredText)) {
-    return res.status(400).json({ success: false, error: 'conversationId, senderId, receiverId, and text are required' });
+  const { conversationId, senderId, receiverId, text = '', clientMessageId } = req.body || {};
+  const attachments = req.body?.attachments ?? [];
+  if (![conversationId, senderId, receiverId].every(requiredText) || typeof text !== 'string' || text.length > 5000) {
+    return res.status(400).json({ success: false, error: 'conversationId, senderId, receiverId, and valid text are required' });
+  }
+  if (!Array.isArray(attachments) || attachments.length > 1 || attachments.some((attachment) => !validAttachment(attachment))) {
+    return res.status(400).json({ success: false, error: 'Attach one supported file up to 5MB' });
+  }
+  if (!text.trim() && attachments.length === 0) {
+    return res.status(400).json({ success: false, error: 'Message text or an attachment is required' });
   }
   if (senderId.trim() === receiverId.trim()) {
     return res.status(400).json({ success: false, error: 'senderId and receiverId must be different' });
@@ -50,13 +72,14 @@ router.post('/', async (req, res) => {
       senderId: senderId.trim(),
       receiverId: receiverId.trim(),
       text: text.trim(),
+      attachments,
     });
 
     const unreadField = receiverId.trim() === conversation.buyerId ? 'unreadCountBuyer' : 'unreadCountSeller';
     const updatedConversation = await Conversation.findOneAndUpdate(
       { _id: conversation._id },
       {
-        $set: { lastMessage: message.text, lastMessageTimestamp: message.createdAt },
+        $set: { lastMessage: message.text || '📎 Attachment', lastMessageTimestamp: message.createdAt },
         $inc: { [unreadField]: 1 },
       },
       { new: true }

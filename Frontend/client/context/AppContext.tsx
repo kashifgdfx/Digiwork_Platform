@@ -57,7 +57,7 @@ interface AppContextType {
   messages: Record<string, Message[]>;
   notifications: NotificationItem[];
   unreadMessagesCount: number;
-  sendMessage: (conversationId: string, text: string) => Promise<void>;
+  sendMessage: (conversationId: string, text: string, attachments?: string[]) => Promise<void>;
   startConversationWithSeller: (seller: User, gig?: Gig) => Promise<string>;
   messagingLoading: boolean;
   messagingError: string | null;
@@ -557,6 +557,7 @@ audio.play()
         senderName: payload.senderName || payload.sender?.name || 'User',
         senderAvatar: payload.senderAvatar || payload.sender?.avatar || '',
         text: payload.text,
+        attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
         timestamp: new Date(payload.timestamp || payload.sentAt || Date.now()).toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
@@ -604,7 +605,7 @@ audio.play()
             lastMessageTimestamp: '',
             unreadCount: 0,
           }),
-          lastMessage: payload.text,
+          lastMessage: payload.text || (payload.attachments?.length ? '📎 Attachment' : ''),
           lastMessageTimestamp: message.timestamp,
           unreadCount: senderIsCurrentUser ? existing?.unreadCount || 0 : (existing?.unreadCount || 0) + 1,
         };
@@ -621,7 +622,7 @@ audio.play()
         triggerBrowserNotification(
           payload.senderName || 'User',
           payload.senderAvatar || '/images/default-avatar.png',
-          payload.text,
+          payload.text || (payload.attachments?.length ? 'Sent an attachment' : ''),
           conversationId,
         );
       }
@@ -639,6 +640,7 @@ audio.play()
         senderName: payload.senderName || currentUser.name,
         senderAvatar: payload.senderAvatar || currentUser.avatar,
         text: payload.text,
+        attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
         timestamp: new Date(payload.timestamp || payload.sentAt || Date.now()).toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
@@ -1131,8 +1133,9 @@ audio.play()
     }).catch((err) => console.warn('Failed to update order status in MongoDB:', err));
   };
 
-  const sendMessage = async (conversationId: string, text: string) => {
-    if (!currentUser || !text.trim()) return;
+  const sendMessage = async (conversationId: string, text: string, attachments: string[] = []) => {
+    const trimmedText = text.trim();
+    if (!currentUser || (!trimmedText && attachments.length === 0)) return;
 
     const clientMessageId = `msg-${crypto.randomUUID()}`;
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1142,7 +1145,8 @@ audio.play()
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
-      text: text.trim(),
+      text: trimmedText,
+      attachments,
       timestamp,
       isRead: true,
       status: 'sent',
@@ -1162,7 +1166,7 @@ audio.play()
       conversation.id === conversationId
         ? {
             ...conversation,
-            lastMessage: optimisticMessage.text,
+            lastMessage: optimisticMessage.text || (attachments.length ? '📎 Attachment' : ''),
             lastMessageTimestamp: timestamp,
             unreadCount: 0,
           }
@@ -1185,7 +1189,8 @@ audio.play()
         conversationId,
         senderId: currentUser.id,
         receiverId,
-        text: text.trim(),
+        text: trimmedText,
+        attachments,
         clientMessageId,
       };
 

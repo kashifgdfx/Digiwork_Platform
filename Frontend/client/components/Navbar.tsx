@@ -19,6 +19,7 @@ import {
   X,
   UserShield,
   Settings,
+  User,
 } from "lucide-react";
 
 export const Navbar: React.FC = () => {
@@ -95,9 +96,9 @@ export const Navbar: React.FC = () => {
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
+        <div className="flex items-center justify-between h-16 gap-3">
           {/* Logo */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center group">
               <span className="text-2xl font-black tracking-tight text-gray-900 group-hover:text-gray-800 transition-colors">
                 Digiwork
@@ -108,27 +109,27 @@ export const Navbar: React.FC = () => {
             {/* Global Search Bar (Desktop) */}
             <form
               onSubmit={handleSearchSubmit}
-              className="hidden lg:flex items-center relative w-80 xl:w-96"
+              className="hidden lg:flex items-center relative w-72 xl:w-80"
             >
               <input
                 type="text"
-                placeholder="What service are you looking for today?"
+                placeholder="What service are you looking for?"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-[#1dbf73] focus:ring-1 focus:ring-[#1dbf73] placeholder-gray-400"
+                className="w-full pl-3 pr-9 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-[#1dbf73] focus:ring-1 focus:ring-[#1dbf73] placeholder-gray-400"
               />
               <button
                 type="submit"
-                className="absolute right-1 top-1 bottom-1 px-3 bg-[#1dbf73] hover:bg-[#19a463] text-white rounded transition-colors flex items-center justify-center"
+                className="absolute right-1 top-1 bottom-1 px-2.5 bg-[#1dbf73] hover:bg-[#19a463] text-white rounded transition-colors flex items-center justify-center"
                 aria-label="Search"
               >
-                <Search size={16} />
+                <Search size={15} />
               </button>
             </form>
           </div>
 
           {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center gap-5 text-sm font-medium">
+          <div className="hidden md:flex items-center gap-3 text-sm font-medium">
             <Link
               href="/gigs"
               className="flex items-center text-gray-600 hover:text-[#1dbf73] transition-colors"
@@ -138,12 +139,12 @@ export const Navbar: React.FC = () => {
 
             {isLoggedIn ? (
               <>
-                {/* Switch Role Button */}
+                {/* Switch Role Button - Fixed whitespace and padding */}
                 <button
                   onClick={toggleRole}
-                  className="px-3 py-1.5 border border-[#1dbf73] text-[#1dbf73] hover:bg-emerald-50 rounded-md transition-colors text-xs font-semibold flex items-center gap-1.5"
+                  className="px-2.5 py-1.5 border border-[#1dbf73] text-[#1dbf73] hover:bg-emerald-50 rounded-md transition-colors text-xs font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
                 >
-                  <Sparkles size={14} />
+                  <Sparkles size={13} />
                   {currentRole === "buyer"
                     ? "Switch to Selling"
                     : "Switch to Buying"}
@@ -152,10 +153,10 @@ export const Navbar: React.FC = () => {
                 {/* Messages */}
                 <Link
                   href="/messages"
-                  className="relative p-2 text-gray-600 hover:text-[#1dbf73] transition-colors rounded-full hover:bg-gray-100 flex items-center justify-center"
+                  className="relative p-2 text-gray-600 hover:text-[#1dbf73] transition-colors rounded-full hover:bg-gray-100 flex items-center justify-center shrink-0"
                   title="Messages"
                 >
-                  <MessageSquare size={20} />
+                  <MessageSquare size={19} />
                   {unreadMessages > 0 && (
                     <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#1dbf73] text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none shadow-sm">
                       {displayUnreadCount}
@@ -164,16 +165,18 @@ export const Navbar: React.FC = () => {
                 </Link>
 
                 {/* Notifications Bell */}
-                <NotificationBell />
+                <div className="shrink-0">
+                  <NotificationBell />
+                </div>
 
                 {/* Favorites */}
                 <Link
                   href="/gigs?favorites=true"
-                  className="relative p-2 text-gray-600 hover:text-[#1dbf73] transition-colors rounded-full hover:bg-gray-100 flex items-center justify-center"
+                  className="relative p-2 text-gray-600 hover:text-[#1dbf73] transition-colors rounded-full hover:bg-gray-100 flex items-center justify-center shrink-0"
                   title="Saved Gigs"
                 >
                   <Heart
-                    size={20}
+                    size={19}
                     className={
                       favorites.length > 0 ? "fill-rose-500 text-rose-500" : ""
                     }
@@ -192,11 +195,11 @@ export const Navbar: React.FC = () => {
                       ? "/dashboard/buyer"
                       : "/dashboard/seller"
                   }
-                  className="flex items-center gap-2 text-gray-600 hover:text-[#1dbf73] transition-colors relative"
+                  className="flex items-center gap-1.5 text-gray-600 hover:text-[#1dbf73] transition-colors relative shrink-0"
                 >
                   {currentRole === "buyer" ? (
                     <>
-                      <ShoppingBag size={18} className="shrink-0" />
+                      <ShoppingBag size={17} className="shrink-0" />
                       <span className="leading-none">Orders</span>
                       {activeOrdersCount > 0 && (
                         <span className="relative -ml-1 -top-2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold bg-[#1dbf73] text-white rounded-full leading-none shadow-sm">
@@ -206,7 +209,7 @@ export const Navbar: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <LayoutDashboard size={18} className="shrink-0" />
+                      <LayoutDashboard size={17} className="shrink-0" />
                       <span className="leading-none">Seller Dashboard</span>
                     </>
                   )}
@@ -214,20 +217,20 @@ export const Navbar: React.FC = () => {
 
                 {/* Desktop Admin Panel Link */}
                 {currentUser?.role === "admin" && (
-                  <AdminTasksDropdown count={adminPendingCount} displayCount={displayAdminPendingCount} />
+                  <div className="shrink-0">
+                    <AdminTasksDropdown count={adminPendingCount} displayCount={displayAdminPendingCount} />
+                  </div>
                 )}
 
                 {/* User Dropdown */}
-                <div className="relative flex items-center">
+                <div className="relative flex items-center shrink-0">
                   <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
                     className="flex items-center gap-2 focus:outline-none"
                   >
-                    <img
-                      src={activeUser?.avatar || "/images/default-avatar.png"}
-                      alt={activeUser?.name || "User"}
-                      className="w-8 h-8 rounded-full object-cover ring-2 ring-emerald-500/30"
-                    />
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-gray-500 ring-2 ring-emerald-500/30">
+                      {activeUser?.avatar ? <img src={activeUser.avatar} alt={activeUser.name || "User"} className="h-full w-full object-cover" /> : <User size={18} />}
+                    </span>
                   </button>
 
                   {userMenuOpen && (
@@ -276,15 +279,6 @@ export const Navbar: React.FC = () => {
                         <LayoutDashboard size={16} />
                         <span>Seller Dashboard</span>
                       </Link>
-{/* 
-                      {currentUser?.role === "admin" && (
-                        <AdminTasksDropdown
-                          count={adminPendingCount}
-                          displayCount={displayAdminPendingCount}
-                          mobile
-                          className="px-4"
-                        />
-                      )} */}
 
                       <Link
                         href="/messages"
@@ -407,11 +401,9 @@ export const Navbar: React.FC = () => {
         (isLoggedIn ? (
           <div className="md:hidden border-t border-gray-200 bg-white px-4 pt-3 pb-6 space-y-3">
             <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
-              <img
-                src={activeUser?.avatar || "/images/default-avatar.png"}
-                alt={activeUser?.name || "User"}
-                className="w-10 h-10 rounded-full object-cover"
-              />
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-gray-500">
+                {activeUser?.avatar ? <img src={activeUser.avatar} alt={activeUser.name || "User"} className="h-full w-full object-cover" /> : <User size={20} />}
+              </span>
               <div>
                 <p className="font-semibold text-gray-900 text-sm">
                   {activeUser?.name}

@@ -137,14 +137,27 @@ router.patch('/', requireUser, async (req, res) => {
 });
 
 router.patch('/avatar', requireUser, async (req, res) => {
-  const { avatar } = req.body || {};
-  if (typeof avatar !== 'string' || !/^data:image\/(png|jpeg|jpg|webp);base64,[a-zA-Z0-9+/=]+$/.test(avatar)) {
-    return res.status(400).json({ success: false, error: 'Avatar must be a PNG, JPEG, or WebP image upload' });
+  try {
+    const { avatar } = req.body || {};
+
+    // An empty string is an explicit request to remove the current avatar.
+    if (avatar === '') {
+      req.authUser.avatar = '';
+    } else {
+      if (typeof avatar !== 'string' || !/^data:image\/(png|jpeg|jpg|webp);base64,[a-zA-Z0-9+/=]+$/.test(avatar)) {
+        return res.status(400).json({ success: false, error: 'Avatar must be a PNG, JPEG, or WebP image upload' });
+      }
+      if (Buffer.byteLength(avatar, 'utf8') > MAX_AVATAR_BYTES) {
+        return res.status(413).json({ success: false, error: 'Avatar must be smaller than 4MB' });
+      }
+      req.authUser.avatar = avatar;
+    }
+
+    await req.authUser.save();
+    return res.json({ success: true, user: serialize(req.authUser) });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Unable to update avatar' });
   }
-  if (Buffer.byteLength(avatar, 'utf8') > MAX_AVATAR_BYTES) return res.status(413).json({ success: false, error: 'Avatar must be smaller than 4MB' });
-  req.authUser.avatar = avatar;
-  await req.authUser.save();
-  return res.json({ success: true, user: serialize(req.authUser) });
 });
 
 router.post('/skills', requireUser, async (req, res) => {

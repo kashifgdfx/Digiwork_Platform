@@ -197,6 +197,7 @@ export interface Message {
   senderName: string;
   senderAvatar: string;
   text: string;
+  attachments?: string[];
   timestamp: string;
   isRead: boolean;
   isEdited?: boolean;

@@ -3,22 +3,16 @@
 import { ChangeEvent, FormEvent, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { apiFetch } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import { Education, Experience, Certification, PortfolioItem } from '@/types';
 import { ProfileSkeleton } from '@/components/skeletons/ProfileSkeleton';
+import { User, Trash2 } from 'lucide-react'; // User aur Trash icon import kar liye
 
 const tabs = ['Personal Information', 'Professional Information', 'Skills', 'Languages', 'Education', 'Certifications', 'Experience', 'Portfolio', 'Social Links'] as const;
 type Tab = typeof tabs[number];
 
 type FieldMap = Record<string, string>;
 const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#1dbf73] focus:ring-2 focus:ring-emerald-100';
-
-function languageLabel(value: unknown) {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object' && 'language' in value) return `${String(value.language)} (${String((value as { proficiency?: string }).proficiency || '')})`;
-  return '';
-}
 
 export default function ProfileSettingsPage() {
   const { currentUser, updateProfile, addProfileItem, updateProfileItem, deleteProfileItem, uploadAvatar } = useApp();
@@ -106,6 +100,18 @@ export default function ProfileSettingsPage() {
     reader.readAsDataURL(file);
   };
 
+  const handleRemoveAvatar = async () => {
+    setSaving(true);
+    try {
+      await uploadAvatar('');
+      feedback('Profile picture removed.');
+    } catch (err) {
+      fail(err instanceof Error ? err.message : 'Unable to remove avatar.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const startEdit = (item: Record<string, unknown>) => {
     setEditingId(String(item._id || ''));
     setFields(Object.entries(item).reduce<FieldMap>((result, [key, value]) => {
@@ -145,9 +151,72 @@ export default function ProfileSettingsPage() {
     <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatar} className="hidden" />
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold text-[#1dbf73]">Account settings</p><h1 className="mt-1 text-3xl font-bold text-gray-900">Edit your profile</h1><p className="mt-2 text-sm text-gray-500">Keep your professional profile current so clients know who they are hiring.</p></div><Link href={`/profile/${currentUser.username}`} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700">View public profile</Link></div>
     <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-      <aside className="h-fit rounded-xl border border-gray-200 bg-white p-3 shadow-sm"><div className="mb-4 flex items-center gap-3 border-b border-gray-100 p-2 pb-4"><button type="button" onClick={openAvatarPicker} className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-full ring-2 ring-emerald-100 transition hover:ring-emerald-300"><img src={currentUser.avatar || '/images/default-avatar.png'} alt={currentUser.name} className="h-full w-full object-cover" /><span className="absolute inset-0 flex items-center justify-center bg-black/30 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">Edit</span></button><div className="min-w-0"><p className="truncate font-semibold text-gray-900">{currentUser.name}</p><p className="text-xs text-gray-500">{currentUser.profileCompletion?.percentage || 0}% complete</p></div></div>{tabs.map((item) => <button key={item} onClick={() => { setTab(item); resetForm(); }} className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-sm ${tab === item ? 'bg-emerald-50 font-semibold text-[#168f58]' : 'text-gray-600 hover:bg-gray-50'}`}>{item}</button>)}</aside>
+      
+      {/* Sidebar Profile Card */}
+      <aside className="h-fit rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+        <div className="mb-4 flex items-center gap-3 border-b border-gray-100 p-2 pb-4">
+          <button type="button" onClick={openAvatarPicker} className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-full ring-2 ring-emerald-100 transition hover:ring-emerald-300 flex items-center justify-center bg-gray-100 text-gray-500">
+            {currentUser.avatar ? (
+              <img src={currentUser.avatar} alt={currentUser.name} className="h-full w-full object-cover" />
+            ) : (
+              <User size={22} />
+            )}
+            <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">Edit</span>
+          </button>
+          <div className="min-w-0"><p className="truncate font-semibold text-gray-900">{currentUser.name}</p><p className="text-xs text-gray-500">{currentUser.profileCompletion?.percentage || 0}% complete</p></div>
+        </div>
+        {tabs.map((item) => <button key={item} onClick={() => { setTab(item); resetForm(); }} className={`mb-1 w-full rounded-lg px-3 py-2 text-left text-sm ${tab === item ? 'bg-emerald-50 font-semibold text-[#168f58]' : 'text-gray-600 hover:bg-gray-50'}`}>{item}</button>)}
+      </aside>
+
       <section>
-        {tab === 'Personal Information' && <form onSubmit={saveBasic} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"><div className="mb-6 flex flex-wrap items-center justify-between gap-4"><div><h2 className="text-xl font-bold">Personal information</h2><p className="text-sm text-gray-500">How clients identify and contact you.</p></div><button type="button" onClick={openAvatarPicker} className="cursor-pointer rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold">Change photo</button></div><div className="mb-6 flex justify-center"><button type="button" onClick={openAvatarPicker} className="group relative h-24 w-24 overflow-hidden rounded-full border-4 border-emerald-100 bg-white shadow-sm transition hover:border-emerald-200"><img src={currentUser.avatar || '/images/default-avatar.png'} alt={currentUser.name} className="h-full w-full object-cover" /><span className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold text-white opacity-0 transition group-hover:opacity-100">Edit</span></button></div><div className="grid gap-4 sm:grid-cols-2">{[['name', 'Full name'], ['username', 'Username'], ['phone', 'Phone'], ['country', 'Country'], ['state', 'State'], ['city', 'City'], ['timezone', 'Timezone']].map(([key, label]) => <label key={key}><span className="mb-1.5 block text-sm font-medium text-gray-700">{label}</span><input className={inputClass} value={fields[key] ?? String(currentUser[key as keyof typeof currentUser] || '')} onChange={(event) => setField(key, event.target.value)} required={key === 'name' || key === 'username'} /></label>)}</div><button disabled={saving} className="mt-6 rounded-lg bg-[#1dbf73] px-5 py-2.5 text-sm font-semibold text-white">Save changes</button></form>}
+        {tab === 'Personal Information' && (
+          <form onSubmit={saveBasic} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">Personal information</h2>
+                <p className="text-sm text-gray-500">How clients identify and contact you.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={openAvatarPicker} className="cursor-pointer rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold">Change photo</button>
+                {currentUser.avatar && (
+                  <button type="button" onClick={handleRemoveAvatar} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 flex items-center gap-1">
+                    <Trash2 size={14} /> Remove
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Main Avatar Preview Container */}
+            <div className="mb-6 flex flex-col items-center justify-center gap-2">
+              <div className="group relative h-24 w-24 overflow-hidden rounded-full border-4 border-emerald-100 bg-gray-100 shadow-sm transition hover:border-emerald-200 flex items-center justify-center text-gray-500">
+                {currentUser.avatar ? (
+                  <img src={currentUser.avatar} alt={currentUser.name} className="h-full w-full object-cover" />
+                ) : (
+                  <User size={40} />
+                )}
+                <button type="button" onClick={openAvatarPicker} className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold text-white opacity-0 transition group-hover:opacity-100">
+                  Edit
+                </button>
+              </div>
+              {currentUser.avatar && (
+                <button type="button" onClick={handleRemoveAvatar} className="text-xs text-red-600 hover:underline font-medium">
+                  Remove photo
+                </button>
+              )}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[['name', 'Full name'], ['username', 'Username'], ['phone', 'Phone'], ['country', 'Country'], ['state', 'State'], ['city', 'City'], ['timezone', 'Timezone']].map(([key, label]) => (
+                <label key={key}>
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700">{label}</span>
+                  <input className={inputClass} value={fields[key] ?? String(currentUser[key as keyof typeof currentUser] || '')} onChange={(event) => setField(key, event.target.value)} required={key === 'name' || key === 'username'} />
+                </label>
+              ))}
+            </div>
+            <button disabled={saving} className="mt-6 rounded-lg bg-[#1dbf73] px-5 py-2.5 text-sm font-semibold text-white">Save changes</button>
+          </form>
+        )}
+        
         {tab === 'Professional Information' && <form onSubmit={saveProfessional} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">Professional information</h2><div className="mt-5 space-y-4"><label><span className="mb-1.5 block text-sm font-medium text-gray-700">Professional headline</span><input className={inputClass} value={fields.headline ?? (currentUser.headline || '')} onChange={(event) => setField('headline', event.target.value)} /></label><label><span className="mb-1.5 block text-sm font-medium text-gray-700">Bio</span><textarea className={`${inputClass} min-h-40`} value={fields.bio ?? (currentUser.bio || '')} onChange={(event) => setField('bio', event.target.value)} /></label></div><button disabled={saving} className="mt-6 rounded-lg bg-[#1dbf73] px-5 py-2.5 text-sm font-semibold text-white">Save changes</button></form>}
         {tab === 'Skills' && <div className="space-y-5"><form onSubmit={(event) => { event.preventDefault(); void addProfileItem('skills', { skill: fields.skill }).then(() => { setField('skill', ''); feedback('Skill added.'); }).catch((err: unknown) => fail(err instanceof Error ? err.message : 'Unable to add skill.')); }} className="flex gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><input className={inputClass} placeholder="Add a skill" value={fields.skill || ''} onChange={(event) => setField('skill', event.target.value)} /><button className="rounded-lg bg-[#1dbf73] px-4 py-2 text-sm font-semibold text-white">Add</button></form><div className="flex flex-wrap gap-2">{(currentUser.skills || []).map((skill) => <span key={skill} className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{skill}<button type="button" onClick={() => void deleteProfileItem('skills', skill).then(() => feedback('Skill removed.')).catch((err: unknown) => fail(err instanceof Error ? err.message : 'Unable to remove skill.'))}>×</button></span>)}</div></div>}
         {tab === 'Languages' && renderCollection('languages')}

@@ -5,7 +5,7 @@ const MessageSchema = new mongoose.Schema({
   conversationId: { type: String, required: true, trim: true },
   senderId: { type: String, required: true, trim: true },
   receiverId: { type: String, required: true, trim: true },
-  text: { type: String, required: true, trim: true, minlength: 1, maxlength: 5000 },
+  text: { type: String, default: '', trim: true, minlength: 0, maxlength: 5000 },
   attachments: { type: [String], default: [] },
   sentAt: { type: Date, default: Date.now },
   deliveredAt: { type: Date, default: null },

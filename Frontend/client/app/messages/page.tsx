@@ -55,6 +55,10 @@ function MessagesContent() {
   const [showAttachmentNotice, setShowAttachmentNotice] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [messageActionError, setMessageActionError] = useState("");
+  const [showProfilePhoto, setShowProfilePhoto] = useState(false);
+  const [previewSharedImage, setPreviewSharedImage] = useState<string | null>(null);
+  const [pendingAttachment, setPendingAttachment] = useState<{ name: string; type: string; dataUrl: string } | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   // Edit & Delete States
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -74,6 +78,7 @@ function MessagesContent() {
     (message: any, index: number) =>
       activeMessages.findIndex((item: any) => item.id === message.id) === index,
   );
+
 
   // Typing indicator states
   const [showTyping, setShowTyping] = useState(false);
@@ -264,6 +269,37 @@ function MessagesContent() {
     }
   };
 
+  const handleAttachmentSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setMessageActionError('File must be 5MB or smaller.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setPendingAttachment({ name: file.name, type: file.type || 'application/octet-stream', dataUrl: reader.result });
+      } else {
+        setMessageActionError('Unable to read this file. Please try another.');
+      }
+    };
+    reader.onerror = () => setMessageActionError('Unable to read this file. Please try another.');
+    reader.readAsDataURL(file);
+  };
+
+  const handleSendAttachment = async () => {
+    if (!pendingAttachment || !selectedConvId || messagingLoading) return;
+    try {
+      await sendMessage(selectedConvId, inputText, [pendingAttachment.dataUrl]);
+      setInputText('');
+      setPendingAttachment(null);
+    } catch {
+      // Error is reported by the app context.
+    }
+  };
+
   // Edit Message Handler
   const handleSaveEdit = (msgId: string) => {
     if (!editText.trim()) return;
@@ -367,6 +403,7 @@ function MessagesContent() {
   }
 
   return (
+    <>
     <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-2 sm:py-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-6rem)] min-h-[500px] flex flex-col font-sans">
       <div className="bg-white border border-slate-200/85 sm:rounded-3xl shadow-xl shadow-slate-100 flex-1 flex overflow-hidden backdrop-blur-xl w-full">
         {/* Left Column: Conversations Sidebar */}
@@ -512,11 +549,18 @@ function MessagesContent() {
 
                   <div className="relative shrink-0">
                     {activeConv.participant?.avatar ? (
-                      <img
-                        src={activeConv.participant.avatar}
-                        alt={activeConv.participant.name || "Unknown user"}
-                        className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl object-cover ring-2 ring-slate-100"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowProfilePhoto(true)}
+                        aria-label={`View ${activeConv.participant.name || "user"}'s profile picture`}
+                        className="block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      >
+                        <img
+                          src={activeConv.participant.avatar}
+                          alt={activeConv.participant.name || "Unknown user"}
+                          className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl object-cover ring-2 ring-slate-100"
+                        />
+                      </button>
                     ) : (
                       <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center font-bold text-sm">
                         {(activeConv.participant?.name || "U")
@@ -656,7 +700,20 @@ function MessagesContent() {
                             </div>
                           ) : (
                             <>
-                              {msg.text}
+                              {(msg.attachments || []).map((attachment: string, index: number) => {
+                                const mimeType = attachment.match(/^data:([^;]+);base64,/)?.[1] || '';
+                                return mimeType.startsWith('image/') ? (
+                                  <button key={`${msg.id}-attachment-${index}`} type="button" onClick={() => setPreviewSharedImage(attachment)} aria-label="Open shared image preview" className="mb-2 block max-w-full cursor-zoom-in">
+                                    <img src={attachment} alt="Shared image" className="max-h-72 max-w-full rounded-lg object-contain" />
+                                  </button>
+                                ) : (
+                                  <a key={`${msg.id}-attachment-${index}`} href={attachment} download={`attachment-${index + 1}.${({ 'application/pdf': 'pdf', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'text/plain': 'txt', 'text/csv': 'csv', 'application/zip': 'zip' } as Record<string, string>)[mimeType] || 'bin'}`} className="mb-2 flex items-center gap-2 rounded-lg border border-current/20 p-3 underline underline-offset-2">
+                                    <FileUp size={18} />
+                                    <span className="break-all">Download file ({mimeType || 'file'})</span>
+                                  </a>
+                                );
+                              })}
+                              {msg.text && <span>{msg.text}</span>}
                               {msg.isEdited && (
                                 <span className="text-[10px] opacity-75 ml-1.5 italic">
                                   (edited)
@@ -737,6 +794,10 @@ function MessagesContent() {
                   onSubmit={handleSend}
                   className="flex items-center gap-2 sm:gap-3"
                 >
+                  <input ref={attachmentInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip" onChange={handleAttachmentSelect} className="hidden" />
+                  <button type="button" onClick={() => attachmentInputRef.current?.click()} aria-label="Attach a file" className="shrink-0 rounded-xl p-2.5 text-slate-500 transition hover:bg-slate-100 hover:text-[#1dbf73]">
+                    <Paperclip size={19} />
+                  </button>
                   <input
                     type="text"
                     placeholder={`Message ${activeConv.participant?.name || "this user"}...`}
@@ -773,6 +834,71 @@ function MessagesContent() {
         </div>
       </div>
     </div>
+    {pendingAttachment && (
+      <div role="presentation" onClick={() => !messagingLoading && setPendingAttachment(null)} className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-label="Preview attachment" onClick={(event) => event.stopPropagation()} className="w-full max-w-xl rounded-2xl bg-white p-5 shadow-2xl">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="truncate text-sm font-semibold text-slate-900">{pendingAttachment.name}</h2>
+            <button type="button" disabled={messagingLoading} onClick={() => setPendingAttachment(null)} aria-label="Close attachment preview" className="rounded-full p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"><X size={20} /></button>
+          </div>
+          {pendingAttachment.type.startsWith('image/') ? (
+            <img src={pendingAttachment.dataUrl} alt="Selected attachment preview" className="mx-auto max-h-[60vh] max-w-full rounded-lg object-contain" />
+          ) : (
+            <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-slate-600">
+              <FileUp size={40} className="text-[#1dbf73]" />
+              <span className="max-w-full break-all text-sm font-medium">{pendingAttachment.name}</span>
+              <span className="text-xs text-slate-400">{pendingAttachment.type || 'File'}</span>
+            </div>
+          )}
+          <div className="mt-5 flex justify-end">
+            <button type="button" disabled={messagingLoading} onClick={handleSendAttachment} className="inline-flex items-center gap-2 rounded-xl bg-[#1dbf73] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#19a463] disabled:opacity-50">
+              <Send size={15} /> {messagingLoading ? 'Sending...' : 'Send'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    {previewSharedImage && (
+      <div role="presentation" onClick={() => setPreviewSharedImage(null)} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-label="Shared image preview" onClick={(event) => event.stopPropagation()} className="relative flex max-h-[95vh] max-w-[95vw] items-center justify-center">
+          <button type="button" onClick={() => setPreviewSharedImage(null)} aria-label="Close image preview" className="absolute -right-2 -top-12 rounded-full bg-white/15 p-2 text-white hover:bg-white/25"><X size={22} /></button>
+          <img src={previewSharedImage} alt="Shared image enlarged" className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain shadow-2xl" />
+        </div>
+      </div>
+    )}
+    {showProfilePhoto && activeConv?.participant?.avatar && (
+      <div
+        role="presentation"
+        onClick={() => setShowProfilePhoto(false)}
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${activeConv.participant.name || "User"}'s profile picture`}
+          onClick={(event) => event.stopPropagation()}
+          className="relative flex max-h-[90vh] max-w-[90vw] flex-col items-center gap-4"
+        >
+          <button
+            type="button"
+            onClick={() => setShowProfilePhoto(false)}
+            aria-label="Close profile picture"
+            className="absolute -right-2 -top-12 rounded-full bg-white/15 p-2 text-white transition hover:bg-white/25"
+          >
+            <X size={24} />
+          </button>
+          <img
+            src={activeConv.participant.avatar}
+            alt={activeConv.participant.name || "Unknown user"}
+            className="max-h-[75vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+          />
+          <p className="text-center text-base font-semibold text-white">
+            {activeConv.participant.name || "Unknown user"}
+          </p>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
