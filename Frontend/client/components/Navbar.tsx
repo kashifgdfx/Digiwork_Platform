@@ -168,6 +168,7 @@ export const Navbar: React.FC = () => {
                 <div className="shrink-0">
                   <NotificationBell />
                 </div>
+                
 
                 {/* Favorites */}
                 <Link
@@ -175,7 +176,7 @@ export const Navbar: React.FC = () => {
                   className="relative p-2 text-gray-600 hover:text-[#1dbf73] transition-colors rounded-full hover:bg-gray-100 flex items-center justify-center shrink-0"
                   title="Saved Gigs"
                 >
-                  
+
                   <Heart
                     size={19}
                     className={
